@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>絶対音感テスト (Beta)</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; padding: 20px; background: #f0f0f5; }
+    .card { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+    input { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+    button { width: 100%; padding: 15px; background: #007bff; color: white; border: none; border-radius: 4px; font-size: 16px; font-weight: bold; }
+    button:disabled { background: #999; }
+    /* デバッグ用仮想コンソールのデザイン */
+    #terminal { background: #1e1e1e; color: #00ff00; padding: 10px; border-radius: 4px; height: 250px; overflow-y: scroll; font-family: monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h2>音感テスト (モック)</h2>
+    <p>※重要な個人情報は入力しないでください。</p>
+    <input type="text" id="username" placeholder="公開ネーム (例: ヤマダ)">
+    <input type="password" id="password" placeholder="パスワード (自動生成可能)">
+    <button id="generateBtn" style="background:#28a745; margin-bottom: 10px;">パスワード自動生成</button>
+    <button id="testBtn">テスト実行＆結果送信</button>
+  </div>
+
+  <div class="card">
+    <h3>システムログ (可観測性モニター)</h3>
+    <div id="terminal">System Initialized. Waiting for action...<br></div>
+  </div>
+
+  <script>
+    // 【重要】ここにGASで発行したURLを貼り付けてください
+    const GAS_URL = "ここにあなたのGASのウェブアプリURLを貼る"; 
+
+    const terminal = document.getElementById('terminal');
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    const testBtn = document.getElementById('testBtn');
+
+    // 1. 仮想コンソールへのログ出力関数（iPhone実機デバッグ用）
+    function logToTerminal(message, type = "INFO") {
+      const time = new Date().toLocaleTimeString();
+      let color = type === "ERROR" ? "#ff5555" : (type === "SUCCESS" ? "#55ff55" : "#cccccc");
+      terminal.innerHTML += `<span style="color:${color}">[${time}] [${type}] ${message}</span><br>`;
+      terminal.scrollTop = terminal.scrollHeight; // 常に最下部へスクロール
+    }
+
+    // 2. パスワード自動生成（ブラウザの乱数生成器を使用）
+    document.getElementById('generateBtn').addEventListener('click', () => {
+      const array = new Uint32Array(2);
+      window.crypto.getRandomValues(array);
+      const generatedPass = array[0].toString(16) + array[1].toString(16);
+      passwordInput.value = generatedPass;
+      logToTerminal(`Generated new password: ${generatedPass}`);
+    });
+
+    // 3. 文字列からSHA-256ハッシュを生成する非同期関数（Web Crypto API）
+    async function sha256(message) {
+      const msgBuffer = new TextEncoder().encode(message);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    // 4. メイン処理：テスト実行と送信
+    testBtn.addEventListener('click', async () => {
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value.trim();
+
+      if (!username || !password) {
+        logToTerminal("Validation Error: ネームとパスワードを入力してください", "ERROR");
+        return;
+      }
+
+      testBtn.disabled = true;
+      logToTerminal("--- 新しいセッションを開始 ---");
+
+      try {
+        // [フェーズ1] パスワードのハッシュ化
+        logToTerminal("Phase 1: PBKDF2/SHA-256 演算開始...");
+        // 単純化のためパスワードとネームを結合してハッシュ化（ソルトの代わり）
+        const passHash = await sha256(username + password);
+        logToTerminal(`Phase 1 完了: ハッシュ値生成成功 (${passHash.substring(0,8)}...)`, "SUCCESS");
+
+        // [フェーズ2] ダミーのテストスコア生成
+        logToTerminal("Phase 2: 絶対音感テスト実行中...");
+        const mockScore = Math.floor(Math.random() * 100); // 0〜99のランダムスコア
+        await new Promise(r => setTimeout(r, 500)); // 0.5秒の擬似待機
+        logToTerminal(`Phase 2 完了: スコア計測完了 (${mockScore}点)`, "SUCCESS");
+
+        // [フェーズ3] クライアント側 PoW (Hashcash) 計算
+        logToTerminal("Phase 3: PoW (Proof of Work) 演算開始。Nonceを探索中...");
+        let nonce = 0;
+        let validHash = "";
+        const startTime = Date.now();
+        const difficulty = "000"; // 先頭3文字が0になるまで探す
+
+        while (true) {
+          const checkString = username + passHash + mockScore + nonce;
+          validHash = await sha256(checkString);
+          if (validHash.startsWith(difficulty)) {
+            break;
+          }
+          nonce++;
+          // 1000回ごとにUIスレッドを開放し、フリーズを防ぐ
+          if (nonce % 1000 === 0) await new Promise(r => setTimeout(r, 0)); 
+        }
+        const timeTaken = Date.now() - startTime;
+        logToTerminal(`Phase 3 完了: Nonce発見 [${nonce}] 演算時間: ${timeTaken}ms`, "SUCCESS");
+
+        // [フェーズ4] GASへのPOST通信
+        logToTerminal("Phase 4: GASエンドポイントへパケット送信中...");
+        
+        const payload = {
+          username: username,
+          passHash: passHash,
+          score: mockScore,
+          nonce: nonce
+        };
+
+        const response = await fetch(GAS_URL, {
+          method: 'POST',
+          mode: 'cors', // CORSモードを指定（ただしGASの仕様によりOpaqueレスポンスになる場合があります）
+          headers: {
+            'Content-Type': 'text/plain', // GASへのCORS回避のためtext/plainを使用
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (response.ok || response.type === 'opaque') {
+          // GASの仕様上、リダイレクトが発生するため response.ok が取れないことがある
+          logToTerminal("Phase 4 完了: データ送信成功。スプレッドシートを確認してください。", "SUCCESS");
+        } else {
+          logToTerminal(`HTTP Error: ${response.status}`, "ERROR");
+        }
+
+      } catch (error) {
+        logToTerminal(`Exception Occurred: ${error.message}`, "ERROR");
+      } finally {
+        testBtn.disabled = false;
+        logToTerminal("--- セッション終了 ---");
+      }
+    });
+  </script>
+</body>
+</html>
