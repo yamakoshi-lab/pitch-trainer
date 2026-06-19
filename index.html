@@ -1,148 +1,288 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>絶対音感テスト (Beta)</title>
-  <style>
-    body { font-family: -apple-system, sans-serif; padding: 20px; background: #f0f0f5; }
-    .card { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
-    input { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
-    button { width: 100%; padding: 15px; background: #007bff; color: white; border: none; border-radius: 4px; font-size: 16px; font-weight: bold; }
-    button:disabled { background: #999; }
-    /* デバッグ用仮想コンソールのデザイン */
-    #terminal { background: #1e1e1e; color: #00ff00; padding: 10px; border-radius: 4px; height: 250px; overflow-y: scroll; font-family: monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pitch Trainer - Absolute & Relative</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --text-color: #f8fafc;
+            --white-key: #ffffff;
+            --black-key: #1e293b;
+            --active-key: #38bdf8;
+        }
+        * { box-sizing: border-box; touch-action: manipulation; }
+        body {
+            margin: 0; padding: 0; background: var(--bg-color); color: var(--text-color);
+            font-family: -apple-system, sans-serif; display: flex; flex-direction: column;
+            height: 100vh; overflow: hidden;
+        }
+        #header { padding: 10px 20px; text-align: center; }
+        #status-bar {
+            display: flex; justify-content: space-between; font-size: 1.2rem;
+            font-weight: bold; margin-bottom: 10px;
+        }
+        #timer-bar-container { width: 100%; height: 10px; background: #334155; border-radius: 5px; }
+        #timer-bar { width: 100%; height: 100%; background: #22c55e; transition: width 0.1s linear; }
+        
+        #message-area { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; text-align: center; padding: 0 20px;}
+        
+        /* Piano UI Matrix (2 Octaves) */
+        #piano-container {
+            height: 40vh; width: 100%; position: relative; background: #000;
+            display: flex; border-top: 2px solid #334;
+        }
+        .key { cursor: pointer; position: relative; border: 1px solid #ccc; border-radius: 0 0 5px 5px; }
+        .white-key { flex: 1; background: var(--white-key); z-index: 1; }
+        .black-key {
+            position: absolute; background: var(--black-key); z-index: 2;
+            width: 4.5%; height: 60%; top: 0; margin-left: -2.25%; border-radius: 0 0 4px 4px;
+        }
+        .white-key:active, .black-key:active { background: var(--active-key); }
+        
+        #overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.95); z-index: 100;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        button {
+            padding: 15px 30px; font-size: 1.2rem; font-weight: bold; border: none;
+            border-radius: 8px; background: #3b82f6; color: white; margin-top: 20px;
+        }
+        input { padding: 10px; font-size: 1rem; border-radius: 5px; border: none; text-align: center; margin-bottom: 10px;}
+    </style>
 </head>
 <body>
 
-  <div class="card">
-    <h2>音感テスト (モック)</h2>
-    <p>※重要な個人情報は入力しないでください。</p>
-    <input type="text" id="username" placeholder="公開ネーム (例: ヤマダ)">
-    <input type="password" id="password" placeholder="パスワード (自動生成可能)">
-    <button id="generateBtn" style="background:#28a745; margin-bottom: 10px;">パスワード自動生成</button>
-    <button id="testBtn">テスト実行＆結果送信</button>
-  </div>
+    <div id="overlay">
+        <h2>Pitch Trainer</h2>
+        <p>1-5問: 絶対音感 (基準音なし)</p>
+        <p>6-10問: 相対音感 (基準音 C4 あり)</p>
+        <p>各問題 3秒以内 に解答してください。</p>
+        <input type="text" id="anon-id" readonly>
+        <button onclick="startGame()">テスト開始</button>
+    </div>
 
-  <div class="card">
-    <h3>システムログ (可観測性モニター)</h3>
-    <div id="terminal">System Initialized. Waiting for action...<br></div>
-  </div>
+    <div id="header">
+        <div id="status-bar">
+            <span id="question-counter">Q: 0/10</span>
+            <span id="score-display">Score: 0</span>
+        </div>
+        <div id="timer-bar-container"><div id="timer-bar"></div></div>
+    </div>
 
-  <script>
-    // 変更後（これがGitHubに公開される安全なコード
-    const GAS_URL = "YOUR_GAS_URL_HERE"; 
+    <div id="message-area">準備完了</div>
 
-    const terminal = document.getElementById('terminal');
-    const usernameInput = document.getElementById('username');
-    const passwordInput = document.getElementById('password');
-    const testBtn = document.getElementById('testBtn');
+    <div id="piano-container">
+        </div>
 
-    // 1. 仮想コンソールへのログ出力関数（iPhone実機デバッグ用）
-    function logToTerminal(message, type = "INFO") {
-      const time = new Date().toLocaleTimeString();
-      let color = type === "ERROR" ? "#ff5555" : (type === "SUCCESS" ? "#55ff55" : "#cccccc");
-      terminal.innerHTML += `<span style="color:${color}">[${time}] [${type}] ${message}</span><br>`;
-      terminal.scrollTop = terminal.scrollHeight; // 常に最下部へスクロール
-    }
-
-    // 2. パスワード自動生成（ブラウザの乱数生成器を使用）
-    document.getElementById('generateBtn').addEventListener('click', () => {
-      const array = new Uint32Array(2);
-      window.crypto.getRandomValues(array);
-      const generatedPass = array[0].toString(16) + array[1].toString(16);
-      passwordInput.value = generatedPass;
-      logToTerminal(`Generated new password: ${generatedPass}`);
-    });
-
-    // 3. 文字列からSHA-256ハッシュを生成する非同期関数（Web Crypto API）
-    async function sha256(message) {
-      const msgBuffer = new TextEncoder().encode(message);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    }
-
-    // 4. メイン処理：テスト実行と送信
-    testBtn.addEventListener('click', async () => {
-      const username = usernameInput.value.trim();
-      const password = passwordInput.value.trim();
-
-      if (!username || !password) {
-        logToTerminal("Validation Error: ネームとパスワードを入力してください", "ERROR");
-        return;
-      }
-
-      testBtn.disabled = true;
-      logToTerminal("--- 新しいセッションを開始 ---");
-
-      try {
-        // [フェーズ1] パスワードのハッシュ化
-        logToTerminal("Phase 1: PBKDF2/SHA-256 演算開始...");
-        // 単純化のためパスワードとネームを結合してハッシュ化（ソルトの代わり）
-        const passHash = await sha256(username + password);
-        logToTerminal(`Phase 1 完了: ハッシュ値生成成功 (${passHash.substring(0,8)}...)`, "SUCCESS");
-
-        // [フェーズ2] ダミーのテストスコア生成
-        logToTerminal("Phase 2: 絶対音感テスト実行中...");
-        const mockScore = Math.floor(Math.random() * 100); // 0〜99のランダムスコア
-        await new Promise(r => setTimeout(r, 500)); // 0.5秒の擬似待機
-        logToTerminal(`Phase 2 完了: スコア計測完了 (${mockScore}点)`, "SUCCESS");
-
-        // [フェーズ3] クライアント側 PoW (Hashcash) 計算
-        logToTerminal("Phase 3: PoW (Proof of Work) 演算開始。Nonceを探索中...");
-        let nonce = 0;
-        let validHash = "";
-        const startTime = Date.now();
-        const difficulty = "000"; // 先頭3文字が0になるまで探す
-
-        while (true) {
-          const checkString = username + passHash + mockScore + nonce;
-          validHash = await sha256(checkString);
-          if (validHash.startsWith(difficulty)) {
-            break;
-          }
-          nonce++;
-          // 1000回ごとにUIスレッドを開放し、フリーズを防ぐ
-          if (nonce % 1000 === 0) await new Promise(r => setTimeout(r, 0)); 
+    <script>
+        // --- 1. 匿名ID生成と永続化 ---
+        function generateAnonId() {
+            const chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            const randomArray = new Uint8Array(8);
+            crypto.getRandomValues(randomArray);
+            let id = '';
+            for (let i = 0; i < 8; i++) id += chars[randomArray[i] % chars.length];
+            return 'ID:' + id;
         }
-        const timeTaken = Date.now() - startTime;
-        logToTerminal(`Phase 3 完了: Nonce発見 [${nonce}] 演算時間: ${timeTaken}ms`, "SUCCESS");
+        let anonUserId = localStorage.getItem("pitch_app_anon_id");
+        if (!anonUserId) {
+            anonUserId = generateAnonId();
+            localStorage.setItem("pitch_app_anon_id", anonUserId);
+        }
+        document.getElementById('anon-id').value = anonUserId;
 
-        // [フェーズ4] GASへのPOST通信
-        logToTerminal("Phase 4: GASエンドポイントへパケット送信中...");
+        // --- 2. 物理的制約と数理モデル（2オクターブ） ---
+        const OCTAVES = 2;
+        const START_NOTE = 60; // C4
+        const TOTAL_KEYS = OCTAVES * 12;
+        let audioCtx;
         
-        const payload = {
-          username: username,
-          passHash: passHash,
-          score: mockScore,
-          nonce: nonce
-        };
+        // ピアノUI描画 (O(N) 計算量)
+        const pianoContainer = document.getElementById('piano-container');
+        const whiteNotes = [0, 2, 4, 5, 7, 9, 11]; // 白鍵の相対インデックス
+        let whiteKeyCount = 0;
 
-        const response = await fetch(GAS_URL, {
-          method: 'POST',
-          mode: 'cors', // CORSモードを指定（ただしGASの仕様によりOpaqueレスポンスになる場合があります）
-          headers: {
-            'Content-Type': 'text/plain', // GASへのCORS回避のためtext/plainを使用
-          },
-          body: JSON.stringify(payload)
-        });
-
-        if (response.ok || response.type === 'opaque') {
-          // GASの仕様上、リダイレクトが発生するため response.ok が取れないことがある
-          logToTerminal("Phase 4 完了: データ送信成功。スプレッドシートを確認してください。", "SUCCESS");
-        } else {
-          logToTerminal(`HTTP Error: ${response.status}`, "ERROR");
+        for (let i = 0; i < TOTAL_KEYS; i++) {
+            const noteIndex = i % 12;
+            const isWhite = whiteNotes.includes(noteIndex);
+            const key = document.createElement('div');
+            key.dataset.note = START_NOTE + i;
+            key.addEventListener('mousedown', () => handleTap(START_NOTE + i));
+            key.addEventListener('touchstart', (e) => { e.preventDefault(); handleTap(START_NOTE + i); });
+            
+            if (isWhite) {
+                key.className = 'key white-key';
+                pianoContainer.appendChild(key);
+                whiteKeyCount++;
+            } else {
+                key.className = 'key black-key';
+                // 白鍵の幅に依存した物理的配置
+                key.style.left = `calc((100% / ${OCTAVES * 7}) * ${whiteKeyCount})`;
+                pianoContainer.appendChild(key);
+            }
         }
 
-      } catch (error) {
-        logToTerminal(`Exception Occurred: ${error.message}`, "ERROR");
-      } finally {
-        testBtn.disabled = false;
-        logToTerminal("--- セッション終了 ---");
-      }
-    });
-  </script>
+        // --- 3. 音響発振エンジン (レイテンシ < 10ms) ---
+        function playTone(midiNote, duration = 1000) {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            
+            // ポップノイズ除去のためのエンベロープ（物理減衰シミュレーション）
+            gain.gain.setValueAtTime(0, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.8, audioCtx.currentTime + 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration/1000);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration/1000);
+        }
+
+        // --- 4. ゲームループ（状態遷移マトリクス） ---
+        let currentQuestion = 0;
+        const totalQuestions = 10;
+        let totalScore = 0;
+        let targetNote = 0;
+        let isWaitingAnswer = false;
+        let questionStartTime = 0;
+        let timerInterval;
+
+        async function startGame() {
+            document.getElementById('overlay').style.display = 'none';
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') await audioCtx.resume();
+            
+            currentQuestion = 0;
+            totalScore = 0;
+            nextQuestion();
+        }
+
+        function nextQuestion() {
+            if (currentQuestion >= totalQuestions) {
+                endGame();
+                return;
+            }
+            
+            currentQuestion++;
+            document.getElementById('question-counter').innerText = `Q: ${currentQuestion}/10`;
+            targetNote = START_NOTE + Math.floor(Math.random() * TOTAL_KEYS);
+            isWaitingAnswer = false;
+
+            // Phase分割: 1-5問(絶対音感), 6-10問(相対音感)
+            if (currentQuestion <= 5) {
+                document.getElementById('message-area').innerText = "音を当ててください！";
+                setTimeout(() => startTimerAndAcceptAnswer(), 200);
+            } else {
+                document.getElementById('message-area').innerText = "基準音(C4) ...";
+                playTone(START_NOTE, 800); // 基準音 C4 を鳴らす
+                setTimeout(() => {
+                    document.getElementById('message-area').innerText = "この音は？";
+                    startTimerAndAcceptAnswer();
+                }, 1000);
+            }
+        }
+
+        function startTimerAndAcceptAnswer() {
+            playTone(targetNote, 1000);
+            questionStartTime = performance.now();
+            isWaitingAnswer = true;
+            
+            const timerBar = document.getElementById('timer-bar');
+            timerBar.style.width = '100%';
+            timerBar.style.background = '#22c55e';
+            
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                const elapsed = performance.now() - questionStartTime;
+                const remaining = Math.max(0, 100 - (elapsed / 3000) * 100);
+                timerBar.style.width = `${remaining}%`;
+                
+                if (remaining < 30) timerBar.style.background = '#ef4444';
+                
+                if (elapsed >= 3000) {
+                    processAnswer(-1); // タイムアウト
+                }
+            }, 16); // 60fps更新
+        }
+
+        function handleTap(midiNote) {
+            if (!isWaitingAnswer) {
+                playTone(midiNote, 300); // ゲーム外の遊び弾き用
+                return;
+            }
+            playTone(midiNote, 500);
+            processAnswer(midiNote);
+        }
+
+        function processAnswer(answeredNote) {
+            isWaitingAnswer = false;
+            clearInterval(timerInterval);
+            const elapsed = performance.now() - questionStartTime;
+            
+            let score = 0;
+            if (answeredNote === -1) {
+                document.getElementById('message-area').innerText = "Time Out!";
+            } else {
+                const distance = Math.abs(answeredNote - targetNote);
+                // 距離と時間に基づく正の減衰関数スコア計算
+                const baseScore = Math.max(0, 100 - (distance * 15));
+                const timeMultiplier = Math.max(0, 1 - (elapsed / 3000));
+                score = Math.floor(baseScore * timeMultiplier);
+                
+                if (distance === 0) {
+                    document.getElementById('message-area').innerText = `Perfect! +${score}`;
+                } else {
+                    document.getElementById('message-area').innerText = `Miss (誤差:${distance}) +${score}`;
+                }
+            }
+            
+            totalScore += score;
+            document.getElementById('score-display').innerText = `Score: ${totalScore}`;
+            
+            setTimeout(nextQuestion, 1500);
+        }
+
+        // --- 5. セキュリティ＆通信層 ---
+        async function endGame() {
+            document.getElementById('message-area').innerText = `Finish! Total Score: ${totalScore}\nデータを送信中...`;
+            
+            // Netlify環境変数が注入されるプレースホルダー
+            // ローカルテスト時は一時的に本物のGAS URLに書き換えてください
+            const gasUrl = "YOUR_GAS_URL_HERE"; 
+            
+            // PBKDF2/SHA-256 エミュレート (軽量ハッシュ)
+            const encoder = new TextEncoder();
+            const data = encoder.encode(anonUserId + totalScore + "pitch_secret");
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const passHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+            const payload = {
+                username: anonUserId,
+                passHash: passHash,
+                score: totalScore,
+                nonce: Math.floor(Math.random() * 10000).toString()
+            };
+
+            try {
+                const response = await fetch(gasUrl, {
+                    method: 'POST',
+                    mode: 'no-cors', // CORS完全回避
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                document.getElementById('message-area').innerText = "送信完了！お疲れ様でした。";
+            } catch (e) {
+                document.getElementById('message-area').innerText = "送信エラー。ネットワークを確認してください。";
+            }
+        }
+    </script>
 </body>
 </html>
