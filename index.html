@@ -56,14 +56,53 @@
             display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
             padding-bottom: 10px; box-sizing: border-box; user-select: none;
         }
-        .white-key { flex: 1; background: var(--white-key); z-index: 1; color: #475569; }
-        .black-key {
-            position: absolute; background: var(--black-key); z-index: 2;
-            width: 4.3%; height: 60%; /* 縦幅 5分の3 */
-            margin-left: -2.15%; border-radius: 0 0 4px 4px; border: 1px solid #000;
-            color: #94a3b8; justify-content: center; padding-bottom: 0;
+        .white-key {
+            flex: 1;
+            background: hsl(var(--hue), 85%, 90%);
+            color: hsl(var(--hue), 90%, 15%);
+            border: 1px solid hsl(var(--hue), 60%, 75%);
+            z-index: 1;
         }
-        .white-key:active, .black-key:active { background: var(--active-key); color: #fff; }
+        .black-key {
+            position: absolute;
+            background: hsl(var(--hue), 40%, 12%);
+            color: hsl(var(--hue), 80%, 70%);
+            z-index: 2;
+            width: 4.3%; height: 60%; /* 縦幅 5分の3 */
+            margin-left: -2.15%; border-radius: 0 0 4px 4px;
+            border: 1px solid hsl(var(--hue), 45%, 8%);
+            justify-content: center; padding-bottom: 0;
+        }
+        .white-key:active {
+            background: hsl(var(--hue), 100%, 70%) !important;
+            color: #fff !important;
+        }
+        .black-key:active {
+            background: hsl(var(--hue), 100%, 50%) !important;
+            color: #fff !important;
+        }
+
+        /* 基準音 (C4) のスペシャルスタイル */
+        .reference-key {
+            border: 3px solid #eab308 !important; /* ゴールド/イエローの太いボーダー */
+            box-shadow: inset 0 0 12px rgba(234, 179, 8, 0.7), 0 4px 10px rgba(0, 0, 0, 0.4);
+            position: relative;
+        }
+        .reference-key::before {
+            content: "★ 基準音 (C4)";
+            position: absolute;
+            top: 5px;
+            font-size: 0.5rem;
+            font-weight: bold;
+            color: #ffffff;
+            background: #eab308;
+            padding: 1px 3px;
+            border-radius: 3px;
+            z-index: 10;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            pointer-events: none;
+            white-space: nowrap;
+        }
         
         /* 鍵盤ラベルのフォントトポロジー */
         .key-label { pointer-events: none; text-align: center; font-weight: bold; }
@@ -232,14 +271,36 @@
             const labelContainer = document.createElement('div');
             labelContainer.className = 'key-label';
 
+            // ドレミの色相マッピング (赤〜紫のHSLサークル)
+            const NOTE_HUES = {
+                0: 0,     // C (ド): 赤
+                1: 15,    // C#
+                2: 30,    // D (レ): 橙
+                3: 45,    // D#
+                4: 60,    // E (ミ): 黄
+                5: 120,   // F (ファ): 緑
+                6: 155,   // F#
+                7: 195,   // G (ソ): 水色/青緑
+                8: 215,   // G#
+                9: 240,   // A (ラ): 青
+                10: 260,  // A#
+                11: 280   // B (シ): 紫
+            };
+            const hue = NOTE_HUES[noteIndex];
+            key.style.setProperty('--hue', hue);
+
+            if (midi === 60) {
+                key.classList.add('reference-key');
+            }
+
             if (isWhite) {
-                key.className = 'key white-key';
+                key.className += ' key white-key';
                 labelContainer.innerHTML = `<span>${NOTE_NAMES_ENG[noteIndex]}${octave}</span><span>${NOTE_NAMES_JPN[noteIndex]}</span><span class="label-hz">${hz}Hz</span>`;
                 key.appendChild(labelContainer);
                 pianoContainer.appendChild(key);
                 whiteKeyCount++;
             } else {
-                key.className = 'key black-key';
+                key.className += ' key black-key';
                 key.style.left = `calc((100% / ${OCTAVES * 7}) * ${whiteKeyCount})`;
                 labelContainer.innerHTML = `${NOTE_NAMES_ENG[noteIndex]}${octave} • ${NOTE_NAMES_JPN[noteIndex]} • ${hz}Hz`;
                 key.appendChild(labelContainer);
