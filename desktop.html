@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pitch Trainer Pro - Analytics</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --text-color: #f8fafc;
+            --white-key: #ffffff;
+            --black-key: #1e293b;
+            --active-key: #38bdf8;
+            --perfect-color: #22c55e;
+            --high-color: #ef4444;
+            --low-color: #0ea5e9;
+        }
+        * { box-sizing: border-box; touch-action: manipulation; }
+        body {
+            margin: 0; padding: 0; background: var(--bg-color); color: var(--text-color);
+            font-family: -apple-system, sans-serif; display: flex; flex-direction: column;
+            height: 100vh; overflow: hidden;
+        }
+        
+        .screen { display: none; width: 100%; height: 100%; flex-direction: column; padding: 20px; overflow-y: auto; }
+        .active-screen { display: flex; }
+
+        /* 認証・開始ハブ画面 */
+        .container { max-width: 450px; margin: 0 auto; width: 100%; text-align: center; }
+        .input-group { margin-bottom: 15px; text-align: left; }
+        label { display: block; margin-bottom: 5px; font-size: 0.9rem; color: #94a3b8; }
+        input { width: 100%; padding: 12px; font-size: 1rem; border-radius: 6px; border: 1px solid #334155; background: #1e293b; color: white; text-align: center; }
+        button { width: 100%; padding: 14px; font-size: 1.1rem; font-weight: bold; border: none; border-radius: 6px; background: #2563eb; color: white; cursor: pointer; margin-top: 10px; }
+        button:active { background: #1d4ed8; }
+        
+        #graph-container { width: 100%; margin-top: 20px; background: #1e293b; border-radius: 8px; padding: 10px; height: 220px; }
+
+        /* ゲームプレイ画面 */
+        #game-header { width: 100%; display: flex; flex-direction: column; align-items: center; margin-bottom: 5px; }
+        #status-bar { width: 100%; display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: bold; padding: 5px 0; }
+        #timer-container { width: 100%; height: 8px; background: #334155; border-radius: 4px; overflow: hidden; }
+        #timer-bar { width: 100%; height: 100%; background: var(--perfect-color); transition: width 0.016s linear; }
+        
+        #message-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 10px; }
+        #feedback-label { font-size: 1.8rem; font-weight: bold; margin-bottom: 5px; }
+        #sub-feedback { font-size: 1.1rem; color: #94a3b8; }
+
+        /* ピアノ物理マトリクス（2オクターブ、トリプルラベル内包） */
+        #piano-container {
+            height: 38vh; width: 100%; position: relative; background: #000;
+            display: flex; border-top: 2px solid #334155;
+        }
+        .key { 
+            position: relative; border: 1px solid #cbd5e1; border-radius: 0 0 6px 6px; 
+            display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+            padding-bottom: 10px; box-sizing: border-box; user-select: none;
+        }
+        .white-key {
+            flex: 1;
+            background: hsl(var(--hue), 85%, 90%);
+            color: hsl(var(--hue), 90%, 15%);
+            border: 1px solid hsl(var(--hue), 60%, 75%);
+            z-index: 1;
+        }
+        .black-key {
+            position: absolute;
+            background: hsl(var(--hue), 40%, 12%);
+            color: hsl(var(--hue), 80%, 70%);
+            z-index: 2;
+            width: 4.3%; height: 60%; /* 縦幅 5分の3 */
+            margin-left: -2.15%; border-radius: 0 0 4px 4px;
+            border: 1px solid hsl(var(--hue), 45%, 8%);
+            justify-content: center; padding-bottom: 0;
+        }
+        .white-key:active {
+            background: hsl(var(--hue), 100%, 70%) !important;
+            color: #fff !important;
+        }
+        .black-key:active {
+            background: hsl(var(--hue), 100%, 50%) !important;
+            color: #fff !important;
+        }
+
+        /* 基準音 (C4) のスペシャルスタイル */
+        .reference-key {
+            border: 3px solid #eab308 !important; /* ゴールド/イエローの太いボーダー */
+            box-shadow: inset 0 0 12px rgba(234, 179, 8, 0.7), 0 4px 10px rgba(0, 0, 0, 0.4);
+            position: relative;
+        }
+        .reference-key::before {
+            content: "★ 基準音 (C4)";
+            position: absolute;
+            top: 5px;
+            font-size: 0.5rem;
+            font-weight: bold;
+            color: #ffffff;
+            background: #eab308;
+            padding: 1px 3px;
+            border-radius: 3px;
+            z-index: 10;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        /* 正解キーの発光ハイライト（緑） */
+        .correct-highlight {
+            background: #22c55e !important;
+            color: #ffffff !important;
+            border-color: #16a34a !important;
+            box-shadow: 0 0 20px #22c55e, inset 0 0 12px rgba(255, 255, 255, 0.5) !important;
+            z-index: 10 !important;
+        }
+        .correct-highlight .key-label span, .correct-highlight .key-label {
+            color: #ffffff !important;
+        }
+        
+        /* 鍵盤ラベルのフォントトポロジー */
+        .key-label { pointer-events: none; text-align: center; font-weight: bold; }
+        .white-key .key-label { font-size: 0.75rem; line-height: 1.2; display: flex; flex-direction: column; align-items: center; gap: 2px; width: 100%; }
+        .white-key .label-hz { font-size: 0.6rem; font-weight: normal; color: #94a3b8; }
+        
+        .black-key .key-label { 
+            font-size: 0.55rem; line-height: 1.1; 
+            writing-mode: vertical-lr; text-orientation: mixed;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+
+        /* コンソール・デバッグロガー（最下部ディスプレイ） */
+        #stealth-logger {
+            width: 100%; height: 150px; background: rgba(10, 15, 30, 0.95);
+            border: none; border-top: 2px solid #0ea5e9;
+            color: #38bdf8; font-family: 'Courier New', Courier, monospace; font-size: 0.85rem;
+            padding: 10px; resize: none; overflow-y: scroll;
+            opacity: 1.0; outline: none; z-index: 9999;
+            box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.5);
+            user-select: text; -webkit-user-select: text;
+        }
+        #stealth-logger:focus {
+            background: #020617; border-top-color: #22c55e; color: #22c55e;
+        }
+
+        /* PCキーボード用キーキャップ表示とアクティブ表示 */
+        .keycap {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            border-radius: 4px;
+            background: #e2e8f0;
+            color: #0f172a;
+            border: 1px solid #cbd5e1;
+            box-shadow: 0 2px 0 #94a3b8;
+            margin-top: 5px;
+            margin-bottom: 2px;
+            pointer-events: none;
+            font-family: monospace;
+            z-index: 5;
+        }
+        .black-key .keycap {
+            background: #334155;
+            color: #f8fafc;
+            border: 1px solid #475569;
+            box-shadow: 0 2px 0 #1e293b;
+            font-size: 0.65rem;
+            width: 18px;
+            height: 18px;
+            margin-top: 5px;
+            margin-bottom: 2px;
+        }
+        .white-key.key-active {
+            background: hsl(var(--hue), 100%, 70%) !important;
+            color: #fff !important;
+        }
+        .black-key.key-active {
+            background: hsl(var(--hue), 100%, 50%) !important;
+            color: #fff !important;
+        }
+        /* アプリレイアウト */
+        #app-layout {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #sidebar-left {
+            width: 320px;
+            background: radial-gradient(circle at top left, #1e293b, #0f172a);
+            border-right: 1px solid #334155;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+        #main-content {
+            flex: 1;
+            height: 100%;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .guide-title {
+            font-size: 1.25rem;
+            font-weight: 800;
+            margin-top: 0;
+            margin-bottom: 8px;
+            color: #38bdf8;
+            text-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+        }
+        .guide-desc {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-bottom: 20px;
+            line-height: 1.4;
+        }
+        .keyboard-guide {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            width: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid #334155;
+            box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.5);
+        }
+        .kb-row {
+            display: flex;
+            gap: 3px;
+            justify-content: center;
+            width: 100%;
+        }
+        .kb-key {
+            position: relative;
+            background: #1e293b;
+            border: 1px solid #475569;
+            border-radius: 4px;
+            color: #64748b;
+            font-weight: bold;
+            font-size: 0.7rem;
+            width: 22px;
+            height: 32px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding-top: 2px;
+            box-shadow: 0 1.5px 0 #0f172a;
+            user-select: none;
+            transition: all 0.1s ease;
+        }
+        .kb-key.dummy {
+            opacity: 0.25;
+            background: #0f172a;
+            border-color: #1e293b;
+            color: #475569;
+        }
+        .kb-key.tab, .kb-key.caps, .kb-key.shift {
+            width: 32px;
+        }
+        .kb-key.pitch-key.white {
+            background: #f1f5f9;
+            color: #0f172a;
+            border-color: #cbd5e1;
+            box-shadow: 0 1.5px 0 #94a3b8;
+        }
+        .kb-key.pitch-key.black {
+            background: #0f172a;
+            color: #f1f5f9;
+            border-color: #334155;
+            box-shadow: 0 1.5px 0 #020617;
+        }
+        .note-hint {
+            font-size: 0.45rem;
+            font-weight: normal;
+            position: absolute;
+            bottom: 2px;
+            width: 100%;
+            text-align: center;
+            display: block;
+            white-space: nowrap;
+        }
+        .kb-key.pitch-key.white .note-hint {
+            color: #475569;
+        }
+        .kb-key.pitch-key.black .note-hint {
+            color: #38bdf8;
+        }
+        .kb-key.active {
+            transform: translateY(1.5px);
+            box-shadow: none !important;
+            background: #22c55e !important;
+            color: #ffffff !important;
+            border-color: #16a34a !important;
+        }
+        .kb-key.active .note-hint {
+            color: #ffffff !important;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app-layout">
+        <!-- 左側ガイドパネル -->
+        <div id="sidebar-left">
+            <h1 class="guide-title">Pitch Trainer Pro</h1>
+            <p class="guide-desc">PCのキーボードキーをタイプして直接解答することができます。以下は音程とキーの割り当てガイドです。</p>
+            
+            <div class="keyboard-guide">
+                <!-- 2段目 (Number Row) -->
+                <div class="kb-row">
+                    <div class="kb-key dummy">Esc</div>
+                    <div class="kb-key dummy">1</div>
+                    <div class="kb-key pitch-key black" data-kb="2">2<span class="note-hint">ド#5</span></div>
+                    <div class="kb-key pitch-key black" data-kb="3">3<span class="note-hint">レ#5</span></div>
+                    <div class="kb-key dummy">4</div>
+                    <div class="kb-key pitch-key black" data-kb="5">5<span class="note-hint">ファ#5</span></div>
+                    <div class="kb-key pitch-key black" data-kb="6">6<span class="note-hint">ソ#5</span></div>
+                    <div class="kb-key pitch-key black" data-kb="7">7<span class="note-hint">ラ#5</span></div>
+                    <div class="kb-key dummy">8</div>
+                    <div class="kb-key dummy">9</div>
+                    <div class="kb-key dummy">0</div>
+                </div>
+                
+                <!-- 3段目 (QWERTY Row) -->
+                <div class="kb-row">
+                    <div class="kb-key dummy tab">Tab</div>
+                    <div class="kb-key pitch-key white" data-kb="q">Q<span class="note-hint">ド5</span></div>
+                    <div class="kb-key pitch-key white" data-kb="w">W<span class="note-hint">レ5</span></div>
+                    <div class="kb-key pitch-key white" data-kb="e">E<span class="note-hint">ミ5</span></div>
+                    <div class="kb-key pitch-key white" data-kb="r">R<span class="note-hint">ファ5</span></div>
+                    <div class="kb-key pitch-key white" data-kb="t">T<span class="note-hint">ソ5</span></div>
+                    <div class="kb-key pitch-key white" data-kb="y">Y<span class="note-hint">ラ5</span></div>
+                    <div class="kb-key pitch-key white" data-kb="u">U<span class="note-hint">シ5</span></div>
+                    <div class="kb-key dummy">I</div>
+                    <div class="kb-key dummy">O</div>
+                    <div class="kb-key dummy">P</div>
+                </div>
+
+                <!-- 4段目 (ASDF Row) -->
+                <div class="kb-row">
+                    <div class="kb-key dummy caps">Caps</div>
+                    <div class="kb-key dummy">A</div>
+                    <div class="kb-key pitch-key black" data-kb="s">S<span class="note-hint">ド#4</span></div>
+                    <div class="kb-key pitch-key black" data-kb="d">D<span class="note-hint">レ#4</span></div>
+                    <div class="kb-key dummy">F</div>
+                    <div class="kb-key pitch-key black" data-kb="g">G<span class="note-hint">ファ#4</span></div>
+                    <div class="kb-key pitch-key black" data-kb="h">H<span class="note-hint">ソ#4</span></div>
+                    <div class="kb-key pitch-key black" data-kb="j">J<span class="note-hint">ラ#4</span></div>
+                    <div class="kb-key dummy">K</div>
+                    <div class="kb-key dummy">L</div>
+                    <div class="kb-key dummy">;</div>
+                </div>
+
+                <!-- 5段目 (ZXCV Row) -->
+                <div class="kb-row">
+                    <div class="kb-key dummy shift">Shift</div>
+                    <div class="kb-key pitch-key white" data-kb="z">Z<span class="note-hint">ド4</span></div>
+                    <div class="kb-key pitch-key white" data-kb="x">X<span class="note-hint">レ4</span></div>
+                    <div class="kb-key pitch-key white" data-kb="c">C<span class="note-hint">ミ4</span></div>
+                    <div class="kb-key pitch-key white" data-kb="v">V<span class="note-hint">ファ4</span></div>
+                    <div class="kb-key pitch-key white" data-kb="b">B<span class="note-hint">ソ4</span></div>
+                    <div class="kb-key pitch-key white" data-kb="n">N<span class="note-hint">ラ4</span></div>
+                    <div class="kb-key pitch-key white" data-kb="m">M<span class="note-hint">シ4</span></div>
+                    <div class="kb-key dummy">,</div>
+                    <div class="kb-key dummy">.</div>
+                    <div class="kb-key dummy">/</div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 30px; font-size: 0.75rem; color: #64748b; line-height: 1.6;">
+                <strong>音程の構成:</strong><br>
+                ・下段 (Z~M / S~J) ＝ オクターブ4 (C4~B4)<br>
+                ・上段 (Q~U / 2~7) ＝ オクターブ5 (C5~B5)<br>
+                ※タイピングと同時に鍵盤およびガイドが連動して光ります。
+            </div>
+        </div>
+
+        <!-- 右側メインコンテンツ -->
+        <div id="main-content">
+            <div id="screen-hub" class="screen active-screen">
+                <div class="container">
+                    <h2>Pitch Trainer Pro</h2>
+                    
+                    <form id="auth-form" onsubmit="event.preventDefault(); handleLogin();">
+                        <div class="input-group">
+                            <label>メールアドレス（推奨）またはユーザー名</label>
+                            <input type="text" id="user-email" placeholder="example@domain.com または ユーザー名" autocomplete="username" required>
+                        </div>
+                        <div class="input-group">
+                            <label>4桁の暗証番号 (PIN)</label>
+                            <input type="password" id="user-pin" pattern="\d{4}" maxlength="4" placeholder="1234" autocomplete="current-password" required>
+                        </div>
+                        <button type="submit">ログイン（履歴読み込み）</button>
+                    </form>
+
+                    <div id="user-status" style="display:none; margin-bottom: 10px;">
+                        <p id="display-user-id" style="font-family:monospace; background:#1e293b; padding:8px; border-radius:4px; font-size:0.85rem; margin:5px 0;"></p>
+                        <button onclick="changeUser()" style="background:#475569; font-size:0.8rem; padding:5px; margin:0; width:auto;">別アカウント</button>
+                    </div>
+
+                    <div id="graph-container">
+                        <canvas id="scoreChart"></canvas>
+                    </div>
+
+                    <button id="btn-start-game" onclick="startGame()" style="display:none; background:#22c55e; margin-top:15px; font-size:1.2rem;">テスト開始</button>
+                </div>
+            </div>
+
+            <div id="screen-game" class="screen">
+                <div id="game-header">
+                    <div id="status-bar">
+                        <span id="question-counter">Q: 0/10</span>
+                        <span id="score-display">絶対 誤差: 0 (0.00s) | 相対 誤差: 0 (0.00s)</span>
+                    </div>
+                    <div id="timer-container"><div id="timer-bar"></div></div>
+                </div>
+
+                <div id="message-area">
+                    <div id="feedback-label">準備完了</div>
+                    <div id="sub-feedback"></div>
+                </div>
+
+                <div id="piano-container">
+                </div>
+            </div>
+
+            <textarea id="stealth-logger" readonly placeholder="[System Logs Event Stream]"></textarea>
+        </div>
+    </div>
+
+    <!-- ローカル用設定ファイル（.gitignoreによりGit対象外） -->
+    <script src="config.js"></script>
+
+    <script>
+        // --- 1. デバッグログ制御システム (進捗トレース) ---
+        function writeLog(text) {
+            const logger = document.getElementById('stealth-logger');
+            if (logger) {
+                const time = new Date().toLocaleTimeString();
+                logger.value += `[${time}] ${text}\n`;
+                logger.scrollTop = logger.scrollHeight; // 常に最下部へ自動スクロール
+            }
+        }
+        writeLog("システム初期化開始...");
+
+        // --- 2. インフラストラクチャおよび自動ルーティング設計 ---
+        const CONFIG_GAS_URL = "ENV_GAS_URL"; 
+        let gasUrl = "https://script.google.com/macros/s/省略A/exec";
+
+        // URLパラメータからのGAS_URL設定検知 (URL指定も一応残します)
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has("gasUrl")) {
+            const gasUrlParam = urlParams.get("gasUrl");
+            localStorage.setItem("dev_gas_url", gasUrlParam);
+            writeLog(`[設定] アドレスパラメータからGAS_URLを設定・保存しました: ${gasUrlParam}`);
+        }
+
+        // 動作環境（本番環境かローカル開発環境か）に応じたURL判定
+        if (CONFIG_GAS_URL !== "ENV_GAS_URL") {
+            // Netlify等での自動置換後の本番URLを最優先
+            gasUrl = CONFIG_GAS_URL;
+            writeLog(`[設定] 本番環境（Netlify環境変数）のGAS URLを適用しました: ${gasUrl}`);
+        } else if (window.LOCAL_GAS_URL) {
+            // ローカルの config.js で定義されたURLを二番目に優先
+            gasUrl = window.LOCAL_GAS_URL;
+            writeLog(`[設定] ローカル設定ファイル (config.js) のGAS URLを適用しました: ${gasUrl}`);
+        } else {
+            // ローカル環境で config.js がない場合はlocalStorageから読み込み
+            const savedDevUrl = localStorage.getItem("dev_gas_url");
+            if (savedDevUrl) {
+                gasUrl = savedDevUrl;
+                writeLog(`[設定] ローカル保存されたGAS URLを適用しました: ${gasUrl}`);
+            } else {
+                writeLog(`[警告] GAS_URLが未設定です。`);
+                writeLog(`[ガイド] config.example.js をコピーして config.js を作成し、そこに本物のURLを記述してください（Gitにはコミットされません）。`);
+            }
+        }
+
+        const OCTAVES = 2;
+        const START_NOTE = 60; // C4
+        const TOTAL_KEYS = OCTAVES * 12;
+        
+        const NOTE_NAMES_ENG = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const NOTE_NAMES_JPN = ['ド', 'ド#', 'レ', 'レ#', 'ミ', 'ファ', 'ファ#', 'ソ', 'ソ#', 'ラ', 'ラ#', 'シ'];
+
+        // PCキーボードのマッピング定義 (C4〜B5の24キー)
+        const KEY_MAP = {
+            // Octave 4
+            60: { key: 'z', label: 'Z' }, // C4
+            61: { key: 's', label: 'S' }, // C#4
+            62: { key: 'x', label: 'X' }, // D4
+            63: { key: 'd', label: 'D' }, // D#4
+            64: { key: 'c', label: 'C' }, // E4
+            65: { key: 'v', label: 'V' }, // F4
+            66: { key: 'g', label: 'G' }, // F#4
+            67: { key: 'b', label: 'B' }, // G4
+            68: { key: 'h', label: 'H' }, // G#4
+            69: { key: 'n', label: 'N' }, // A4
+            70: { key: 'j', label: 'J' }, // A#4
+            71: { key: 'm', label: 'M' }, // B4
+            
+            // Octave 5
+            72: { key: 'q', label: 'Q' }, // C5
+            73: { key: '2', label: '2' }, // C#5
+            74: { key: 'w', label: 'W' }, // D5
+            75: { key: '3', label: '3' }, // D#5
+            76: { key: 'e', label: 'E' }, // E5
+            77: { key: 'r', label: 'R' }, // F5
+            78: { key: '5', label: '5' }, // F#5
+            79: { key: 't', label: 'T' }, // G5
+            80: { key: '6', label: '6' }, // G#5
+            81: { key: 'y', label: 'Y' }, // A5
+            82: { key: '7', label: '7' }, // A#5
+            83: { key: 'u', label: 'U' }  // B5
+        };
+
+        let audioCtx;
+        let chartInstance = null;
+        let globalUserIdHash = null;
+
+        let currentQuestion = 0;
+        let absError = 0; // 絶対音感 誤差
+        let absTime = 0;  // 絶対音感 反応時間 (ms)
+        let relError = 0; // 相対音感 誤差
+        let relTime = 0;  // 相対音感 反応時間 (ms)
+        let targetNote = 0;
+        let isWaitingAnswer = false;
+        let questionStartTime = 0;
+        let timerInterval;
+        let detailedLogs = [];
+        let transitionStatePlayed = false;
+
+        writeLog("システム初期化完了。通信待機状態。");
+
+        // --- 2. ピアノUIとトリプル座標ラベルの幾何学的生成 ---
+        const pianoContainer = document.getElementById('piano-container');
+        const whiteNotes = [0, 2, 4, 5, 7, 9, 11];
+        let whiteKeyCount = 0;
+
+        for (let i = 0; i < TOTAL_KEYS; i++) {
+            const midi = START_NOTE + i;
+            const noteIndex = i % 12;
+            const octave = Math.floor(midi / 12) - 1;
+            const isWhite = whiteNotes.includes(noteIndex);
+            
+            const key = document.createElement('div');
+            key.dataset.note = midi;
+            key.addEventListener('mousedown', () => handlePianoTap(midi));
+            key.addEventListener('touchstart', (e) => { e.preventDefault(); handlePianoTap(midi); });
+            
+            // 周波数計算方程式 (第一原理: A4=440Hz基準)
+            const hz = (440 * Math.pow(2, (midi - 69) / 12)).toFixed(1);
+            const labelContainer = document.createElement('div');
+            labelContainer.className = 'key-label';
+
+            // ドレミの色相マッピング (赤〜紫のHSLサークル)
+            const NOTE_HUES = {
+                0: 0,     // C (ド): 赤
+                1: 15,    // C#
+                2: 30,    // D (レ): 橙
+                3: 45,    // D#
+                4: 60,    // E (ミ): 黄
+                5: 120,   // F (ファ): 緑
+                6: 155,   // F#
+                7: 195,   // G (ソ): 水色/青緑
+                8: 215,   // G#
+                9: 240,   // A (ラ): 青
+                10: 260,  // A#
+                11: 280   // B (シ): 紫
+            };
+            const hue = NOTE_HUES[noteIndex];
+            key.style.setProperty('--hue', hue);
+
+            if (midi === 60) {
+                key.classList.add('reference-key');
+            }
+
+            const keyInfo = KEY_MAP[midi];
+
+            if (isWhite) {
+                key.className += ' key white-key';
+                labelContainer.innerHTML = `<span>${NOTE_NAMES_ENG[noteIndex]}${octave}</span><span>${NOTE_NAMES_JPN[noteIndex]}</span><span class="label-hz">${hz}Hz</span>`;
+                key.appendChild(labelContainer);
+                if (keyInfo) {
+                    const cap = document.createElement('span');
+                    cap.className = 'keycap';
+                    cap.innerText = keyInfo.label;
+                    key.appendChild(cap);
+                }
+                pianoContainer.appendChild(key);
+                whiteKeyCount++;
+            } else {
+                key.className += ' key black-key';
+                key.style.left = `calc((100% / ${OCTAVES * 7}) * ${whiteKeyCount})`;
+                labelContainer.innerHTML = `${NOTE_NAMES_ENG[noteIndex]}${octave} • ${NOTE_NAMES_JPN[noteIndex]} • ${hz}Hz`;
+                key.appendChild(labelContainer);
+                if (keyInfo) {
+                    const cap = document.createElement('span');
+                    cap.className = 'keycap';
+                    cap.innerText = keyInfo.label;
+                    key.appendChild(cap);
+                }
+                pianoContainer.appendChild(key);
+            }
+        }
+
+        // PCキーボードのイベントリスナー登録
+        const pressedKeys = new Set();
+        window.addEventListener('keydown', (e) => {
+            if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') {
+                return;
+            }
+            const char = e.key.toLowerCase();
+            let matchedMidi = null;
+            for (const midi in KEY_MAP) {
+                if (KEY_MAP[midi].key === char) {
+                    matchedMidi = parseInt(midi);
+                    break;
+                }
+            }
+            if (matchedMidi !== null) {
+                if (pressedKeys.has(matchedMidi)) return; // リピート防止
+                pressedKeys.add(matchedMidi);
+                
+                const el = document.querySelector(`.key[data-note="${matchedMidi}"]`);
+                if (el) el.classList.add('key-active');
+                
+                const kbEl = document.querySelector(`.kb-key[data-kb="${char}"]`);
+                if (kbEl) kbEl.classList.add('active');
+                
+                handlePianoTap(matchedMidi);
+            }
+        });
+        
+        window.addEventListener('keyup', (e) => {
+            const char = e.key.toLowerCase();
+            let matchedMidi = null;
+            for (const midi in KEY_MAP) {
+                if (KEY_MAP[midi].key === char) {
+                    matchedMidi = parseInt(midi);
+                    break;
+                }
+            }
+            if (matchedMidi !== null) {
+                pressedKeys.delete(matchedMidi);
+                const el = document.querySelector(`.key[data-note="${matchedMidi}"]`);
+                if (el) el.classList.remove('key-active');
+                
+                const kbEl = document.querySelector(`.kb-key[data-kb="${char}"]`);
+                if (kbEl) kbEl.classList.remove('active');
+            }
+        });
+
+        // --- 3. クライアントサイド不変ハッシュ認証 ---
+        async function calculateHash(email, pin) {
+            const encoder = new TextEncoder();
+            const secretSalt = "pitch_salted_token_2026";
+            const data = encoder.encode(email.trim().toLowerCase() + pin.trim() + secretSalt);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        async function handleLogin() {
+            try {
+                const email = document.getElementById('user-email').value;
+                const pin = document.getElementById('user-pin').value;
+                
+                if (!email || pin.length !== 4) {
+                    alert("ユーザー名（またはメールアドレス）と4桁の暗証番号を入力してください。");
+                    return;
+                }
+
+                writeLog("認証ハッシュ演算開始...");
+                if (!window.crypto || !window.crypto.subtle) {
+                    throw new Error("お使いのブラウザ、または接続環境（非SSL環境など）では暗号化機能 (crypto.subtle) がサポートされていません。HTTPSでアクセスしているか確認してください。");
+                }
+                
+                globalUserIdHash = await calculateHash(email, pin);
+                localStorage.setItem("saved_user_hash", globalUserIdHash);
+                writeLog(`ユーザーハッシュ決定: ${globalUserIdHash.substring(0, 16)}...`);
+                
+                showAuthenticatedUI();
+                await fetchScoreHistory();
+            } catch (err) {
+                writeLog(`[ログインエラー] ${err.toString()}`);
+                alert("ログイン処理中にエラーが発生しました。ログコンソールをご確認ください。");
+            }
+        }
+
+        function showAuthenticatedUI() {
+            document.getElementById('auth-form').style.display = 'none';
+            document.getElementById('user-status').style.display = 'block';
+            document.getElementById('display-user-id').innerText = `ID: ${globalUserIdHash.substring(0, 16)}...`;
+            document.getElementById('btn-start-game').style.display = 'block';
+        }
+
+        function changeUser() {
+            writeLog("アカウントセッション破棄。");
+            globalUserIdHash = null;
+            localStorage.removeItem("saved_user_hash");
+            document.getElementById('auth-form').style.display = 'block';
+            document.getElementById('user-status').style.display = 'none';
+            document.getElementById('btn-start-game').style.display = 'none';
+            if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+        }
+
+        // --- 4. 双方向通信システム (GET/POST) ---
+        async function fetchScoreHistory() {
+            if (!globalUserIdHash) return;
+            writeLog(`[GET] 履歴取得開始. 対象URL: ${gasUrl}`);
+            writeLog(`[GET] パラメータ userId: ${globalUserIdHash}`);
+            
+            try {
+                const targetUrl = `${gasUrl}?userId=${globalUserIdHash}`;
+                const response = await fetch(targetUrl);
+                writeLog(`[GET] レスポンス受信. ステータス: ${response.status} (${response.statusText})`);
+                if (!response.ok) {
+                    throw new Error(`HTTPエラー: ${response.status} ${response.statusText}`);
+                }
+                const historyData = await response.json();
+                writeLog(`[GET] 履歴取得成功。レコード数: ${historyData.length}件`);
+                writeLog(`[GET] 取得データ: ${JSON.stringify(historyData)}`);
+                renderChart(historyData);
+            } catch (error) {
+                writeLog(`[GET] エラー発生: ${error.toString()}`);
+                writeLog(`[GET] 接続先のGASウェブアプリが「全員(Anyone)」でデプロイされているか、URLが正しいか確認してください。`);
+                renderChart([]);
+            }
+        }
+
+        function renderChart(data) {
+            const ctx = document.getElementById('scoreChart').getContext('2d');
+            if (chartInstance) { chartInstance.destroy(); }
+
+            data.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            const labels = data.map(item => {
+                const d = new Date(item.timestamp);
+                return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+            });
+            const absErrors = data.map(item => item.absError !== undefined ? item.absError : 0);
+            const absTimes = data.map(item => item.absTime ? (item.absTime / 1000).toFixed(1) : 0);
+            const relErrors = data.map(item => item.relError !== undefined ? item.relError : 0);
+            const relTimes = data.map(item => item.relTime ? (item.relTime / 1000).toFixed(1) : 0);
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels.length ? labels : ["初プレイ待機"],
+                    datasets: [
+                        {
+                            label: '絶対 誤差 (半音)',
+                            data: absErrors.length ? absErrors : [0],
+                            borderColor: '#38bdf8',
+                            backgroundColor: 'rgba(56, 189, 248, 0.03)',
+                            borderWidth: 2,
+                            tension: 0.1,
+                            fill: false
+                        },
+                        {
+                            label: '絶対 時間 (秒)',
+                            data: absTimes.length ? absTimes : [0],
+                            borderColor: '#0369a1',
+                            backgroundColor: 'rgba(3, 105, 161, 0.03)',
+                            borderWidth: 1.5,
+                            borderDash: [5, 5],
+                            tension: 0.1,
+                            fill: false
+                        },
+                        {
+                            label: '相対 誤差 (半音)',
+                            data: relErrors.length ? relErrors : [0],
+                            borderColor: '#fb923c',
+                            backgroundColor: 'rgba(251, 146, 60, 0.03)',
+                            borderWidth: 2,
+                            tension: 0.1,
+                            fill: false
+                        },
+                        {
+                            label: '相対 時間 (秒)',
+                            data: relTimes.length ? relTimes : [0],
+                            borderColor: '#c2410c',
+                            backgroundColor: 'rgba(194, 65, 12, 0.03)',
+                            borderWidth: 1.5,
+                            borderDash: [5, 5],
+                            tension: 0.1,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { min: 0, suggestedMax: 15, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                        x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }
+                    },
+                    plugins: { 
+                        legend: { 
+                            display: true,
+                            labels: { color: '#94a3b8', font: { size: 9 } }
+                        } 
+                    }
+                }
+            });
+        }
+
+        // --- 5. 音響発振モジュール ---
+        function playTransitionChime() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const now = audioCtx.currentTime;
+            
+            // 上昇するCメジャー和音アルペジオ (ド、ミ、ソ、ド)
+            const notes = [60, 64, 67, 72];
+            notes.forEach((note, i) => {
+                const freq = 440 * Math.pow(2, (note - 69) / 12);
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                
+                osc.type = 'triangle'; // 温かみのある柔らかい音色
+                osc.frequency.setValueAtTime(freq, now + i * 0.12);
+                
+                gain.gain.setValueAtTime(0, now + i * 0.12);
+                gain.gain.linearRampToValueAtTime(0.35, now + i * 0.12 + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.55);
+                
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now + i * 0.12);
+                osc.stop(now + i * 0.12 + 0.55);
+            });
+        }
+
+        function playTone(midiNote, duration = 1000) {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            
+            gain.gain.setValueAtTime(0, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.6, audioCtx.currentTime + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration/1000);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration/1000);
+        }
+
+        // --- 6. ゲーム状態管理シーケンス ---
+        function switchScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active-screen'));
+            document.getElementById(screenId).classList.add('active-screen');
+        }
+
+        async function startGame() {
+            if (!globalUserIdHash) return;
+            writeLog("セッションゲームループ開始。");
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+            currentQuestion = 0;
+            absError = 0;
+            absTime = 0;
+            relError = 0;
+            relTime = 0;
+            detailedLogs = [];
+            transitionStatePlayed = false;
+            
+            document.getElementById('score-display').innerText = `絶対 誤差: 0 (0.00s) | 相対 誤差: 0 (0.00s)`;
+            switchScreen('screen-game');
+            nextQuestion();
+        }
+
+        function nextQuestion() {
+            // 正解キーのハイライトをクリア
+            document.querySelectorAll('.key').forEach(el => el.classList.remove('correct-highlight'));
+
+            if (currentQuestion === 5 && !transitionStatePlayed) {
+                transitionStatePlayed = true;
+                playTransitionChime();
+                
+                document.getElementById('feedback-label').innerText = "後半：相対音感テスト";
+                document.getElementById('feedback-label').style.color = '#fb923c'; // 相対のテーマカラー(オレンジ)
+                document.getElementById('sub-feedback').innerText = "基準音(C4)との音程差で答えてください";
+                
+                writeLog("--- 絶対音感モード終了、相対音感モードへ移行します ---");
+                setTimeout(nextQuestion, 2400);
+                return;
+            }
+
+            if (currentQuestion >= 10) {
+                endGameAndSubmit();
+                return;
+            }
+            
+            currentQuestion++;
+            document.getElementById('question-counter').innerText = `Q: ${currentQuestion}/10`;
+            document.getElementById('feedback-label').innerText = "解析中...";
+            document.getElementById('feedback-label').style.color = 'var(--text-color)';
+            document.getElementById('sub-feedback').innerText = "";
+            
+            targetNote = START_NOTE + Math.floor(Math.random() * TOTAL_KEYS);
+            isWaitingAnswer = false;
+
+            if (currentQuestion <= 5) {
+                writeLog(`[第${currentQuestion}問] 絶対音感モード 出題準備完了。`);
+                setTimeout(() => startTimerAndAcceptAnswer(), 400);
+            } else {
+                writeLog(`[第${currentQuestion}問] 相対音感モード 基準音発振。`);
+                document.getElementById('feedback-label').innerText = "基準音 (C4) 再生中";
+                playTone(START_NOTE, 700);
+                setTimeout(() => {
+                    startTimerAndAcceptAnswer();
+                }, 1100);
+            }
+        }
+
+        function startTimerAndAcceptAnswer() {
+            playTone(targetNote, 1000);
+            questionStartTime = performance.now();
+            isWaitingAnswer = true;
+            
+            const timerBar = document.getElementById('timer-bar');
+            timerBar.style.width = '100%';
+            timerBar.style.background = 'var(--perfect-color)';
+            
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                const elapsed = performance.now() - questionStartTime;
+                const remaining = Math.max(0, 100 - (elapsed / 3000) * 100);
+                timerBar.style.width = `${remaining}%`;
+                
+                if (remaining < 35) timerBar.style.background = 'var(--high-color)';
+                
+                if (elapsed >= 3000) {
+                    processUserSelection(-1);
+                }
+            }, 16);
+        }
+
+        function handlePianoTap(midiNote) {
+            if (!isWaitingAnswer) {
+                playTone(midiNote, 250);
+                return;
+            }
+            playTone(midiNote, 400);
+            processUserSelection(midiNote);
+        }
+
+        function processUserSelection(answeredNote) {
+            isWaitingAnswer = false;
+            clearInterval(timerInterval);
+            const elapsed = Math.min(3000, performance.now() - questionStartTime);
+            
+            let addedError = 0;
+            let distance = 0;
+            const label = document.getElementById('feedback-label');
+            const subLabel = document.getElementById('sub-feedback');
+
+            if (answeredNote === -1) {
+                distance = 99; // TimeOut識別コード
+                addedError = 12; // タイムアウト時は1オクターブ分(12半音)の誤差ペナルティ
+                label.innerText = "Time Out (+12)";
+                label.style.color = 'var(--high-color)';
+                subLabel.innerText = "制限時間(3000ms)を超過しました";
+                writeLog(`[結果] 第${currentQuestion}問: Time Out (誤差+12加算)`);
+            } else {
+                distance = answeredNote - targetNote;
+                const absDistance = Math.abs(distance);
+                addedError = absDistance;
+
+                if (distance === 0) {
+                    label.innerText = `Perfect! (誤差0)`;
+                    label.style.color = 'var(--perfect-color)';
+                } else if (distance > 0) {
+                    let msg = "";
+                    if (distance === 1) msg = "惜しい！少し高い (+1)";
+                    else if (distance === 2) msg = "少し高い (+2)";
+                    else if (distance >= 3 && distance <= 5) msg = `高い (+${distance})`;
+                    else msg = `かなり高い (+${distance})`;
+                    
+                    label.innerText = msg;
+                    label.style.color = 'var(--high-color)'; // プラスは赤
+                } else {
+                    const absD = Math.abs(distance);
+                    let msg = "";
+                    if (absD === 1) msg = "惜しい！少し低い (-1)";
+                    else if (absD === 2) msg = "少し低い (-2)";
+                    else if (absD >= 3 && absD <= 5) msg = `低い (-${absD})`;
+                    else msg = `かなり低い (-${absD})`;
+                    
+                    label.innerText = msg;
+                    label.style.color = 'var(--low-color)';  // マイナスは青
+                }
+                subLabel.innerText = `正解: ${NOTE_NAMES_ENG[targetNote%12]}${Math.floor(targetNote/12)-1} / あなた: ${NOTE_NAMES_ENG[answeredNote%12]}${Math.floor(answeredNote/12)-1}`;
+                writeLog(`[結果] 第${currentQuestion}問: 正解=${targetNote}, 解答=${answeredNote}, 誤差=${distance > 0 ? "+" + distance : distance}, 応答=${Math.floor(elapsed)}ms, 加算誤差=${addedError}`);
+            }
+
+            // 正解キーのハイライト表示
+            const correctKeyEl = document.querySelector(`.key[data-note="${targetNote}"]`);
+            if (correctKeyEl) {
+                correctKeyEl.classList.add('correct-highlight');
+            }
+
+            if (currentQuestion <= 5) {
+                absError += addedError;
+                absTime += elapsed;
+            } else {
+                relError += addedError;
+                relTime += elapsed;
+            }
+            document.getElementById('score-display').innerText = `絶対 誤差: ${absError} (${(absTime / 1000).toFixed(2)}s) | 相対 誤差: ${relError} (${(relTime / 1000).toFixed(2)}s)`;
+
+            detailedLogs.push({
+                q: currentQuestion,
+                type: currentQuestion <= 5 ? "absolute" : "relative",
+                target: targetNote,
+                answered: answeredNote,
+                distance: distance === 99 ? "timeout" : distance,
+                time_ms: Math.floor(elapsed)
+            });
+
+            setTimeout(nextQuestion, 1600);
+        }
+
+        // --- 7. データパケット暗号化送信 (POST) ---
+        async function endGameAndSubmit() {
+            clearInterval(timerInterval);
+            document.getElementById('feedback-label').innerText = "スコア送信中...";
+            document.getElementById('feedback-label').style.color = 'var(--perfect-color)';
+
+            const payload = {
+                userId: globalUserIdHash,
+                absError: absError,
+                absTime: absTime,
+                relError: relError,
+                relTime: relTime,
+                details: detailedLogs
+            };
+
+            writeLog(`[POST] スコア送信開始. 対象URL: ${gasUrl}`);
+            writeLog(`[POST] 送信ペイロード: ${JSON.stringify(payload)}`);
+            try {
+                const response = await fetch(gasUrl, {
+                    method: 'POST',
+                    mode: 'no-cors', // no-corsのためレスポンス詳細はブラウザ制限で読めません
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                writeLog(`[POST] 送信リクエスト射出完了 (mode: no-cors のため成功/失敗のステータスコードはブラウザ側で不透明として扱われます)`);
+            } catch (e) {
+                writeLog(`[POST] 送信処理中に例外発生: ${e.toString()}`);
+            }
+
+            setTimeout(async () => {
+                switchScreen('screen-hub');
+                await fetchScoreHistory();
+            }, 1500);
+        }
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            const savedHash = localStorage.getItem("saved_user_hash");
+            if (savedHash) {
+                globalUserIdHash = savedHash;
+                showAuthenticatedUI();
+                await fetchScoreHistory();
+            }
+        });
+    </script>
+</body>
+</html>
