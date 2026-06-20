@@ -99,8 +99,8 @@
             
             <form id="auth-form" onsubmit="event.preventDefault(); handleLogin();">
                 <div class="input-group">
-                    <label>メールアドレス</label>
-                    <input type="email" id="user-email" placeholder="example@domain.com" autocomplete="username" required>
+                    <label>メールアドレス（推奨）またはユーザー名</label>
+                    <input type="text" id="user-email" placeholder="example@domain.com または ユーザー名" autocomplete="username" required>
                 </div>
                 <div class="input-group">
                     <label>4桁の暗証番号 (PIN)</label>
@@ -263,7 +263,7 @@
                 const pin = document.getElementById('user-pin').value;
                 
                 if (!email || pin.length !== 4) {
-                    alert("有効なメールアドレスと4桁の暗証番号を入力してください。");
+                    alert("ユーザー名（またはメールアドレス）と4桁の暗証番号を入力してください。");
                     return;
                 }
 
