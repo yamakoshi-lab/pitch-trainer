@@ -222,21 +222,30 @@
         }
 
         async function handleLogin() {
-            const email = document.getElementById('user-email').value;
-            const pin = document.getElementById('user-pin').value;
-            
-            if (!email || pin.length !== 4) {
-                alert("有効なメールアドレスと4桁の暗証番号を入力してください。");
-                return;
-            }
+            try {
+                const email = document.getElementById('user-email').value;
+                const pin = document.getElementById('user-pin').value;
+                
+                if (!email || pin.length !== 4) {
+                    alert("有効なメールアドレスと4桁の暗証番号を入力してください。");
+                    return;
+                }
 
-            writeLog("認証ハッシュ演算中...");
-            globalUserIdHash = await calculateHash(email, pin);
-            localStorage.setItem("saved_user_hash", globalUserIdHash);
-            writeLog(`ユーザーハッシュ決定: ${globalUserIdHash.substring(0, 16)}...`);
-            
-            showAuthenticatedUI();
-            await fetchScoreHistory();
+                writeLog("認証ハッシュ演算開始...");
+                if (!window.crypto || !window.crypto.subtle) {
+                    throw new Error("お使いのブラウザ、または接続環境（非SSL環境など）では暗号化機能 (crypto.subtle) がサポートされていません。HTTPSでアクセスしているか確認してください。");
+                }
+                
+                globalUserIdHash = await calculateHash(email, pin);
+                localStorage.setItem("saved_user_hash", globalUserIdHash);
+                writeLog(`ユーザーハッシュ決定: ${globalUserIdHash.substring(0, 16)}...`);
+                
+                showAuthenticatedUI();
+                await fetchScoreHistory();
+            } catch (err) {
+                writeLog(`[ログインエラー] ${err.toString()}`);
+                alert("ログイン処理中にエラーが発生しました。ログコンソールをご確認ください。");
+            }
         }
 
         function showAuthenticatedUI() {
