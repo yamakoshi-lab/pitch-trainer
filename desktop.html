@@ -258,25 +258,25 @@
             transition: all 0.1s ease;
         }
         .kb-key.dummy {
-            opacity: 0.25;
-            background: #0f172a;
-            border-color: #1e293b;
-            color: #475569;
+            opacity: 1;
+            background: #1e293b;
+            border-color: #334155;
+            color: #64748b;
         }
         .kb-key.tab, .kb-key.caps, .kb-key.shift {
             width: 32px;
         }
         .kb-key.pitch-key.white {
-            background: #f1f5f9;
-            color: #0f172a;
-            border-color: #cbd5e1;
-            box-shadow: 0 1.5px 0 #94a3b8;
+            background: hsl(var(--hue), 85%, 90%);
+            color: hsl(var(--hue), 90%, 15%);
+            border-color: hsl(var(--hue), 60%, 75%);
+            box-shadow: 0 1.5px 0 hsl(var(--hue), 60%, 65%);
         }
         .kb-key.pitch-key.black {
-            background: #0f172a;
-            color: #f1f5f9;
-            border-color: #334155;
-            box-shadow: 0 1.5px 0 #020617;
+            background: hsl(var(--hue), 40%, 12%);
+            color: hsl(var(--hue), 80%, 70%);
+            border-color: hsl(var(--hue), 45%, 8%);
+            box-shadow: 0 1.5px 0 hsl(var(--hue), 45%, 4%);
         }
         .note-hint {
             font-size: 0.45rem;
@@ -289,10 +289,10 @@
             white-space: nowrap;
         }
         .kb-key.pitch-key.white .note-hint {
-            color: #475569;
+            color: hsl(var(--hue), 90%, 25%);
         }
         .kb-key.pitch-key.black .note-hint {
-            color: #38bdf8;
+            color: hsl(var(--hue), 80%, 70%);
         }
         .kb-key.active {
             transform: translateY(1.5px);
@@ -562,21 +562,43 @@
             const labelContainer = document.createElement('div');
             labelContainer.className = 'key-label';
 
-            // ドレミの色相マッピング (赤〜紫のHSLサークル)
-            const NOTE_HUES = {
-                0: 0,     // C (ド): 赤
-                1: 15,    // C#
-                2: 30,    // D (レ): 橙
-                3: 45,    // D#
-                4: 60,    // E (ミ): 黄
-                5: 120,   // F (ファ): 緑
-                6: 155,   // F#
-                7: 195,   // G (ソ): 水色/青緑
-                8: 215,   // G#
-                9: 240,   // A (ラ): 青
-                10: 260,  // A#
-                11: 280   // B (シ): 紫
-            };
+        // ドレミの色相マッピング (赤〜紫のHSLサークル)
+        const NOTE_HUES = {
+            0: 0,     // C (ド): 赤
+            1: 15,    // C#
+            2: 30,    // D (レ): 橙
+            3: 45,    // D#
+            4: 60,    // E (ミ): 黄
+            5: 120,   // F (ファ): 緑
+            6: 155,   // F#
+            7: 195,   // G (ソ): 水色/青緑
+            8: 215,   // G#
+            9: 240,   // A (ラ): 青
+            10: 260,  // A#
+            11: 280   // B (シ): 紫
+        };
+
+        // --- 2. ピアノUIとトリプル座標ラベルの幾何学的生成 ---
+        const pianoContainer = document.getElementById('piano-container');
+        const whiteNotes = [0, 2, 4, 5, 7, 9, 11];
+        let whiteKeyCount = 0;
+
+        for (let i = 0; i < TOTAL_KEYS; i++) {
+            const midi = START_NOTE + i;
+            const noteIndex = i % 12;
+            const octave = Math.floor(midi / 12) - 1;
+            const isWhite = whiteNotes.includes(noteIndex);
+            
+            const key = document.createElement('div');
+            key.dataset.note = midi;
+            key.addEventListener('mousedown', () => handlePianoTap(midi));
+            key.addEventListener('touchstart', (e) => { e.preventDefault(); handlePianoTap(midi); });
+            
+            // 周波数計算方程式 (第一原理: A4=440Hz基準)
+            const hz = (440 * Math.pow(2, (midi - 69) / 12)).toFixed(1);
+            const labelContainer = document.createElement('div');
+            labelContainer.className = 'key-label';
+
             const hue = NOTE_HUES[noteIndex];
             key.style.setProperty('--hue', hue);
 
@@ -610,6 +632,17 @@
                     key.appendChild(cap);
                 }
                 pianoContainer.appendChild(key);
+            }
+        }
+
+        // ガイドキーへの色相割り当て
+        for (const midi in KEY_MAP) {
+            const keyInfo = KEY_MAP[midi];
+            const noteIndex = parseInt(midi) % 12;
+            const hue = NOTE_HUES[noteIndex];
+            const kbEl = document.querySelector(`.kb-key[data-kb="${keyInfo.key}"]`);
+            if (kbEl) {
+                kbEl.style.setProperty('--hue', hue);
             }
         }
 
