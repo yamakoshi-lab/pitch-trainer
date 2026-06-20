@@ -6,12 +6,15 @@ function doPost(e) {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
     
     // スプレッドシートに記録する（1行の配列として追加）
-    // カラム構成: [A: タイムスタンプ, B: ハッシュ化ユーザーID, C: 総誤差, D: 総反応時間(ms), E: 1問ごとの詳細データ(JSON文字列)]
+    // カラム構成: 
+    // [A: タイムスタンプ, B: ハッシュ化ユーザーID, C: 絶対音感 誤差, D: 絶対音感 反応時間(ms), E: 相対音感 誤差, F: 相対音感 反応時間(ms), G: 詳細データ(JSON)]
     sheet.appendRow([
       new Date(),
       data.userId,
-      data.totalScore, // 総誤差
-      data.totalTime,  // 総反応時間 (ms)
+      data.absError,  // 絶対音感 誤差
+      data.absTime,   // 絶対音感 反応時間 (ms)
+      data.relError,  // 相対音感 誤差
+      data.relTime,   // 相対音感 反応時間 (ms)
       JSON.stringify(data.details) // 解析用の生データを文字列化して保存
     ]);
     
@@ -27,7 +30,6 @@ function doPost(e) {
 
 // --- GETリクエストの受け口（グラフ用データの返却） ---
 function doGet(e) {
-  // URLのパラメータからユーザーのハッシュIDを取得 (?userId=xxx)
   const userId = e.parameter.userId;
   
   if (!userId) {
@@ -39,14 +41,15 @@ function doGet(e) {
   const data = sheet.getDataRange().getValues();
   const results = [];
   
-  // スプレッドシートの全行を走査し、IDが一致する過去データを抽出（計算量 O(N)）
-  // 1行目がヘッダー（見出し）の場合は、i = 1 からスタートしてください。
+  // スプレッドシートの全行を走査し、IDが一致する過去データを抽出
   for (let i = 0; i < data.length; i++) {
     if (data[i][1] === userId) {
       results.push({
         timestamp: data[i][0],
-        score: data[i][2],            // 総誤差
-        time: data[i][3] !== undefined ? data[i][3] : 0  // 総反応時間 (ms)
+        absError: data[i][2] !== undefined ? data[i][2] : 0,
+        absTime: data[i][3] !== undefined ? data[i][3] : 0,
+        relError: data[i][4] !== undefined ? data[i][4] : 0,
+        relTime: data[i][5] !== undefined ? data[i][5] : 0
       });
     }
   }
