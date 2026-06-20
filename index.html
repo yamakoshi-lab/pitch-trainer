@@ -262,6 +262,7 @@
         let questionStartTime = 0;
         let timerInterval;
         let detailedLogs = [];
+        let transitionStatePlayed = false;
 
         writeLog("システム初期化完了。通信待機状態。");
 
@@ -478,6 +479,31 @@
         }
 
         // --- 5. 音響発振モジュール ---
+        function playTransitionChime() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const now = audioCtx.currentTime;
+            
+            // 上昇するCメジャー和音アルペジオ (ド、ミ、ソ、ド)
+            const notes = [60, 64, 67, 72];
+            notes.forEach((note, i) => {
+                const freq = 440 * Math.pow(2, (note - 69) / 12);
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                
+                osc.type = 'triangle'; // 温かみのある柔らかい音色
+                osc.frequency.setValueAtTime(freq, now + i * 0.12);
+                
+                gain.gain.setValueAtTime(0, now + i * 0.12);
+                gain.gain.linearRampToValueAtTime(0.35, now + i * 0.12 + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.55);
+                
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now + i * 0.12);
+                osc.stop(now + i * 0.12 + 0.55);
+            });
+        }
+
         function playTone(midiNote, duration = 1000) {
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
@@ -515,6 +541,7 @@
             relError = 0;
             relTime = 0;
             detailedLogs = [];
+            transitionStatePlayed = false;
             
             document.getElementById('score-display').innerText = `絶対 誤差: 0 (0.00s) | 相対 誤差: 0 (0.00s)`;
             switchScreen('screen-game');
@@ -524,6 +551,19 @@
         function nextQuestion() {
             // 正解キーのハイライトをクリア
             document.querySelectorAll('.key').forEach(el => el.classList.remove('correct-highlight'));
+
+            if (currentQuestion === 5 && !transitionStatePlayed) {
+                transitionStatePlayed = true;
+                playTransitionChime();
+                
+                document.getElementById('feedback-label').innerText = "後半：相対音感テスト";
+                document.getElementById('feedback-label').style.color = '#fb923c'; // 相対のテーマカラー(オレンジ)
+                document.getElementById('sub-feedback').innerText = "基準音(C4)との音程差で答えてください";
+                
+                writeLog("--- 絶対音感モード終了、相対音感モードへ移行します ---");
+                setTimeout(nextQuestion, 2400);
+                return;
+            }
 
             if (currentQuestion >= 10) {
                 endGameAndSubmit();
