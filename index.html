@@ -103,6 +103,18 @@
             pointer-events: none;
             white-space: nowrap;
         }
+
+        /* 正解キーの発光ハイライト（緑） */
+        .correct-highlight {
+            background: #22c55e !important;
+            color: #ffffff !important;
+            border-color: #16a34a !important;
+            box-shadow: 0 0 20px #22c55e, inset 0 0 12px rgba(255, 255, 255, 0.5) !important;
+            z-index: 10 !important;
+        }
+        .correct-highlight .key-label span, .correct-highlight .key-label {
+            color: #ffffff !important;
+        }
         
         /* 鍵盤ラベルのフォントトポロジー */
         .key-label { pointer-events: none; text-align: center; font-weight: bold; }
@@ -165,7 +177,7 @@
         <div id="game-header">
             <div id="status-bar">
                 <span id="question-counter">Q: 0/10</span>
-                <span id="score-display">総誤差: 0 | 反応時間: 0.00秒</span>
+                <span id="score-display">絶対 誤差: 0 (0.00s) | 相対 誤差: 0 (0.00s)</span>
             </div>
             <div id="timer-container"><div id="timer-bar"></div></div>
         </div>
@@ -241,8 +253,10 @@
         let globalUserIdHash = null;
 
         let currentQuestion = 0;
-        let totalScore = 0; // 総誤差 (半音)
-        let totalTime = 0;  // 総反応時間 (ms)
+        let absError = 0; // 絶対音感 誤差
+        let absTime = 0;  // 絶対音感 反応時間 (ms)
+        let relError = 0; // 相対音感 誤差
+        let relTime = 0;  // 相対音感 反応時間 (ms)
         let targetNote = 0;
         let isWaitingAnswer = false;
         let questionStartTime = 0;
@@ -396,8 +410,10 @@
                 const d = new Date(item.timestamp);
                 return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
             });
-            const scores = data.map(item => item.score);
-            const times = data.map(item => item.time ? (item.time / 1000).toFixed(1) : 0);
+            const absErrors = data.map(item => item.absError !== undefined ? item.absError : 0);
+            const absTimes = data.map(item => item.absTime ? (item.absTime / 1000).toFixed(1) : 0);
+            const relErrors = data.map(item => item.relError !== undefined ? item.relError : 0);
+            const relTimes = data.map(item => item.relTime ? (item.relTime / 1000).toFixed(1) : 0);
 
             chartInstance = new Chart(ctx, {
                 type: 'line',
@@ -405,20 +421,40 @@
                     labels: labels.length ? labels : ["初プレイ待機"],
                     datasets: [
                         {
-                            label: '総誤差 (半音)',
-                            data: scores.length ? scores : [0],
+                            label: '絶対 誤差 (半音)',
+                            data: absErrors.length ? absErrors : [0],
                             borderColor: '#38bdf8',
-                            backgroundColor: 'rgba(56, 189, 248, 0.05)',
+                            backgroundColor: 'rgba(56, 189, 248, 0.03)',
                             borderWidth: 2,
                             tension: 0.1,
                             fill: false
                         },
                         {
-                            label: '総反応時間 (秒)',
-                            data: times.length ? times : [0],
-                            borderColor: '#10b981',
-                            backgroundColor: 'rgba(16, 185, 129, 0.05)',
+                            label: '絶対 時間 (秒)',
+                            data: absTimes.length ? absTimes : [0],
+                            borderColor: '#0369a1',
+                            backgroundColor: 'rgba(3, 105, 161, 0.03)',
+                            borderWidth: 1.5,
+                            borderDash: [5, 5],
+                            tension: 0.1,
+                            fill: false
+                        },
+                        {
+                            label: '相対 誤差 (半音)',
+                            data: relErrors.length ? relErrors : [0],
+                            borderColor: '#fb923c',
+                            backgroundColor: 'rgba(251, 146, 60, 0.03)',
                             borderWidth: 2,
+                            tension: 0.1,
+                            fill: false
+                        },
+                        {
+                            label: '相対 時間 (秒)',
+                            data: relTimes.length ? relTimes : [0],
+                            borderColor: '#c2410c',
+                            backgroundColor: 'rgba(194, 65, 12, 0.03)',
+                            borderWidth: 1.5,
+                            borderDash: [5, 5],
                             tension: 0.1,
                             fill: false
                         }
@@ -428,13 +464,13 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: {
-                        y: { min: 0, suggestedMax: 30, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                        y: { min: 0, suggestedMax: 15, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
                         x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }
                     },
                     plugins: { 
                         legend: { 
                             display: true,
-                            labels: { color: '#94a3b8', font: { size: 10 } }
+                            labels: { color: '#94a3b8', font: { size: 9 } }
                         } 
                     }
                 }
@@ -474,16 +510,21 @@
             if (audioCtx.state === 'suspended') await audioCtx.resume();
 
             currentQuestion = 0;
-            totalScore = 0;
-            totalTime = 0;
+            absError = 0;
+            absTime = 0;
+            relError = 0;
+            relTime = 0;
             detailedLogs = [];
             
-            document.getElementById('score-display').innerText = `総誤差: 0 | 反応時間: 0.00秒`;
+            document.getElementById('score-display').innerText = `絶対 誤差: 0 (0.00s) | 相対 誤差: 0 (0.00s)`;
             switchScreen('screen-game');
             nextQuestion();
         }
 
         function nextQuestion() {
+            // 正解キーのハイライトをクリア
+            document.querySelectorAll('.key').forEach(el => el.classList.remove('correct-highlight'));
+
             if (currentQuestion >= 10) {
                 endGameAndSubmit();
                 return;
@@ -592,9 +633,20 @@
                 writeLog(`[結果] 第${currentQuestion}問: 正解=${targetNote}, 解答=${answeredNote}, 誤差=${distance > 0 ? "+" + distance : distance}, 応答=${Math.floor(elapsed)}ms, 加算誤差=${addedError}`);
             }
 
-            totalScore += addedError;
-            totalTime += elapsed;
-            document.getElementById('score-display').innerText = `総誤差: ${totalScore} | 反応時間: ${(totalTime / 1000).toFixed(2)}秒`;
+            // 正解キーのハイライト表示
+            const correctKeyEl = document.querySelector(`.key[data-note="${targetNote}"]`);
+            if (correctKeyEl) {
+                correctKeyEl.classList.add('correct-highlight');
+            }
+
+            if (currentQuestion <= 5) {
+                absError += addedError;
+                absTime += elapsed;
+            } else {
+                relError += addedError;
+                relTime += elapsed;
+            }
+            document.getElementById('score-display').innerText = `絶対 誤差: ${absError} (${(absTime / 1000).toFixed(2)}s) | 相対 誤差: ${relError} (${(relTime / 1000).toFixed(2)}s)`;
 
             detailedLogs.push({
                 q: currentQuestion,
@@ -616,8 +668,10 @@
 
             const payload = {
                 userId: globalUserIdHash,
-                totalScore: totalScore,
-                totalTime: totalTime,
+                absError: absError,
+                absTime: absTime,
+                relError: relError,
+                relTime: relTime,
                 details: detailedLogs
             };
 
