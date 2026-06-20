@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pitch Trainer Pro</title>
+    <title>Pitch Trainer Pro - Analytics</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -23,11 +23,10 @@
             height: 100vh; overflow: hidden;
         }
         
-        /* 画面コンポーネントの制御クラス */
         .screen { display: none; width: 100%; height: 100%; flex-direction: column; padding: 20px; overflow-y: auto; }
         .active-screen { display: flex; }
 
-        /* 認証・開始画面のスタイル */
+        /* 認証・開始ハブ画面 */
         .container { max-width: 450px; margin: 0 auto; width: 100%; text-align: center; }
         .input-group { margin-bottom: 15px; text-align: left; }
         label { display: block; margin-bottom: 5px; font-size: 0.9rem; color: #94a3b8; }
@@ -35,33 +34,60 @@
         button { width: 100%; padding: 14px; font-size: 1.1rem; font-weight: bold; border: none; border-radius: 6px; background: #2563eb; color: white; cursor: pointer; margin-top: 10px; }
         button:active { background: #1d4ed8; }
         
-        /* グラフエリア */
-        #graph-container { width: 100%; margin-top: 20px; background: #1e293b; border-radius: 8px; padding: 10px; min-height: 200px; }
+        #graph-container { width: 100%; margin-top: 20px; background: #1e293b; border-radius: 8px; padding: 10px; height: 220px; }
 
-        /* ゲームプレイ画面のスタイル */
-        #game-header { width: 100%; display: flex; flex-direction: column; align-items: center; margin-bottom: 10px; }
+        /* ゲームプレイ画面 */
+        #game-header { width: 100%; display: flex; flex-direction: column; align-items: center; margin-bottom: 5px; }
         #status-bar { width: 100%; display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: bold; padding: 5px 0; }
         #timer-container { width: 100%; height: 8px; background: #334155; border-radius: 4px; overflow: hidden; }
         #timer-bar { width: 100%; height: 100%; background: var(--perfect-color); transition: width 0.016s linear; }
         
         #message-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 10px; }
-        #feedback-label { font-size: 2rem; font-weight: bold; margin-bottom: 5px; }
+        #feedback-label { font-size: 1.8rem; font-weight: bold; margin-bottom: 5px; }
         #sub-feedback { font-size: 1.1rem; color: #94a3b8; }
 
-        /* ピアノ物理マトリクス（2オクターブ固定） */
+        /* ピアノ物理マトリクス（2オクターブ、トリプルラベル内包） */
         #piano-container {
-            height: 35vh; width: 100%; position: relative; background: #000;
-            display: flex; border-top: 2px solid #334155; margin-top: auto;
+            height: 38vh; width: 100%; position: relative; background: #000;
+            display: flex; border-top: 2px solid #334155;
         }
-        .key { position: relative; border: 1px solid #cbd5e1; border-radius: 0 0 6px 6px; }
-        .white-key { flex: 1; background: var(--white-key); z-index: 1; }
+        .key { 
+            position: relative; border: 1px solid #cbd5e1; border-radius: 0 0 6px 6px; 
+            display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+            padding-bottom: 10px; box-sizing: border-box; user-select: none;
+        }
+        .white-key { flex: 1; background: var(--white-key); z-index: 1; color: #475569; }
         .black-key {
             position: absolute; background: var(--black-key); z-index: 2;
-            width: 4.3%; height: 60%; /* 白鍵の5分の3 (60%) の縦幅に固定 */
+            width: 4.3%; height: 60%; /* 縦幅 5分の3 */
             margin-left: -2.15%; border-radius: 0 0 4px 4px; border: 1px solid #000;
+            color: #94a3b8; justify-content: center; padding-bottom: 0;
         }
-        .white-key:active { background: var(--active-key); }
-        .black-key:active { background: var(--active-key); }
+        .white-key:active, .black-key:active { background: var(--active-key); color: #fff; }
+        
+        /* 鍵盤ラベルのフォントトポロジー */
+        .key-label { pointer-events: none; text-align: center; font-weight: bold; }
+        .white-key .key-label { font-size: 0.75rem; line-height: 1.2; display: flex; flex-direction: column; align-items: center; gap: 2px; width: 100%; }
+        .white-key .label-hz { font-size: 0.6rem; font-weight: normal; color: #94a3b8; }
+        
+        .black-key .key-label { 
+            font-size: 0.55rem; line-height: 1.1; 
+            writing-mode: vertical-lr; text-orientation: mixed;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+
+        /* ステルス・デバッグロガー（最下部と同化する背景テクスチャ） */
+        #stealth-logger {
+            width: 100%; height: 50px; background: rgba(15, 23, 42, 0.4);
+            border: none; border-top: 1px solid rgba(51, 65, 85, 0.3);
+            color: #64748b; font-family: monospace; font-size: 0.7rem;
+            padding: 5px 10px; resize: none; overflow-y: scroll;
+            opacity: 0.15; transition: opacity 0.2s ease, background 0.2s ease;
+            outline: none; z-index: 10;
+        }
+        #stealth-logger:focus, #stealth-logger:hover {
+            opacity: 1.0; background: #020617; color: #38bdf8;
+        }
     </style>
 </head>
 <body>
@@ -72,7 +98,7 @@
             
             <div id="auth-form">
                 <div class="input-group">
-                    <label>メールアドレス（ハッシュ種になります）</label>
+                    <label>メールアドレス</label>
                     <input type="email" id="user-email" placeholder="example@domain.com">
                 </div>
                 <div class="input-group">
@@ -82,16 +108,16 @@
                 <button onclick="handleLogin()">ログイン（履歴読み込み）</button>
             </div>
 
-            <div id="user-status" style="display:none; margin-bottom: 15px;">
-                <p id="display-user-id" style="font-family:monospace; background:#1e293b; padding:8px; border-radius:4px; font-size:0.85rem;"></p>
-                <button onclick="changeUser()" style="background:#475569; font-size:0.9rem; padding:6px; margin:0;">別のアカウントにする</button>
+            <div id="user-status" style="display:none; margin-bottom: 10px;">
+                <p id="display-user-id" style="font-family:monospace; background:#1e293b; padding:8px; border-radius:4px; font-size:0.85rem; margin:5px 0;"></p>
+                <button onclick="changeUser()" style="background:#475569; font-size:0.8rem; padding:5px; margin:0; width:auto;">別アカウント</button>
             </div>
 
             <div id="graph-container">
                 <canvas id="scoreChart"></canvas>
             </div>
 
-            <button id="btn-start-game" onclick="startGame()" style="display:none; background:#22c55e; margin-top:20px; font-size:1.3rem;">テスト開始</button>
+            <button id="btn-start-game" onclick="startGame()" style="display:none; background:#22c55e; margin-top:15px; font-size:1.2rem;">テスト開始</button>
         </div>
     </div>
 
@@ -113,33 +139,80 @@
             </div>
     </div>
 
+    <textarea id="stealth-logger" readonly placeholder="[System Logs Event Stream]"></textarea>
+
     <script>
-        // --- 1. インフラストラクチャ基本定数 ---
-        // Netlifyの環境変数が置換されない場合のフォールバック用。本番デプロイ時は環境変数経由、または直接書き換えてください。
+        // --- 1. インフラストラクチャおよび数理定数 ---
         const CONFIG_GAS_URL = "GAS_URL"; 
         const gasUrl = CONFIG_GAS_URL === "GAS_URL" ? "https://script.google.com/macros/s/省略A/exec" : CONFIG_GAS_URL;
 
         const OCTAVES = 2;
-        const START_NOTE = 60; // C4 (真ん中のド) から開始
-        const TOTAL_KEYS = OCTAVES * 12; // 24鍵
+        const START_NOTE = 60; // C4
+        const TOTAL_KEYS = OCTAVES * 12;
         
+        const NOTE_NAMES_ENG = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const NOTE_NAMES_JPN = ['ド', 'ド#', 'レ', 'レ#', 'ミ', 'ファ', 'ファ#', 'ソ', 'ソ#', 'ラ', 'ラ#', 'シ'];
+
         let audioCtx;
         let chartInstance = null;
         let globalUserIdHash = null;
 
-        // ゲーム状態変数
         let currentQuestion = 0;
         let totalScore = 0;
         let targetNote = 0;
         let isWaitingAnswer = false;
         let questionStartTime = 0;
         let timerInterval;
-        let detailedLogs = []; // 一問ごとの高解像度データロガー配列
+        let detailedLogs = [];
 
-        // --- 2. クライアントサイド・ハッシュ安全認証 (SHA-256) ---
+        // --- デバッグログ制御システム ---
+        function writeLog(text) {
+            const logger = document.getElementById('stealth-logger');
+            const time = new Date().toLocaleTimeString();
+            logger.value += `[${time}] ${text}\n`;
+            logger.scrollTop = logger.scrollHeight; // 常に最下部へ自動スクロール
+        }
+        writeLog("システム初期化完了。通信待機状態。");
+
+        // --- 2. ピアノUIとトリプル座標ラベルの幾何学的生成 ---
+        const pianoContainer = document.getElementById('piano-container');
+        const whiteNotes = [0, 2, 4, 5, 7, 9, 11];
+        let whiteKeyCount = 0;
+
+        for (let i = 0; i < TOTAL_KEYS; i++) {
+            const midi = START_NOTE + i;
+            const noteIndex = i % 12;
+            const octave = Math.floor(midi / 12) - 1;
+            const isWhite = whiteNotes.includes(noteIndex);
+            
+            const key = document.createElement('div');
+            key.dataset.note = midi;
+            key.addEventListener('mousedown', () => handlePianoTap(midi));
+            key.addEventListener('touchstart', (e) => { e.preventDefault(); handlePianoTap(midi); });
+            
+            // 周波数計算方程式 (第一原理: A4=440Hz基準)
+            const hz = (440 * Math.pow(2, (midi - 69) / 12)).toFixed(1);
+            const labelContainer = document.createElement('div');
+            labelContainer.className = 'key-label';
+
+            if (isWhite) {
+                key.className = 'key white-key';
+                labelContainer.innerHTML = `<span>${NOTE_NAMES_ENG[noteIndex]}${octave}</span><span>${NOTE_NAMES_JPN[noteIndex]}</span><span class="label-hz">${hz}Hz</span>`;
+                key.appendChild(labelContainer);
+                pianoContainer.appendChild(key);
+                whiteKeyCount++;
+            } else {
+                key.className = 'key black-key';
+                key.style.left = `calc((100% / ${OCTAVES * 7}) * ${whiteKeyCount})`;
+                labelContainer.innerHTML = `${NOTE_NAMES_ENG[noteIndex]}${octave} • ${NOTE_NAMES_JPN[noteIndex]} • ${hz}Hz`;
+                key.appendChild(labelContainer);
+                pianoContainer.appendChild(key);
+            }
+        }
+
+        // --- 3. クライアントサイド不変ハッシュ認証 ---
         async function calculateHash(email, pin) {
             const encoder = new TextEncoder();
-            // 辞書攻撃を無効化するため、固定ソルトと結合してストレッチング
             const secretSalt = "pitch_salted_token_2026";
             const data = encoder.encode(email.trim().toLowerCase() + pin.trim() + secretSalt);
             const hashBuffer = await crypto.subtle.digest('SHA-256', data);
@@ -156,8 +229,10 @@
                 return;
             }
 
+            writeLog("認証ハッシュ演算中...");
             globalUserIdHash = await calculateHash(email, pin);
             localStorage.setItem("saved_user_hash", globalUserIdHash);
+            writeLog(`ユーザーハッシュ決定: ${globalUserIdHash.substring(0, 16)}...`);
             
             showAuthenticatedUI();
             await fetchScoreHistory();
@@ -166,11 +241,12 @@
         function showAuthenticatedUI() {
             document.getElementById('auth-form').style.display = 'none';
             document.getElementById('user-status').style.display = 'block';
-            document.getElementById('display-user-id').innerText = `ユーザーID: ${globalUserIdHash.substring(0, 12)}...`;
+            document.getElementById('display-user-id').innerText = `ID: ${globalUserIdHash.substring(0, 16)}...`;
             document.getElementById('btn-start-game').style.display = 'block';
         }
 
         function changeUser() {
+            writeLog("アカウントセッション破棄。");
             globalUserIdHash = null;
             localStorage.removeItem("saved_user_hash");
             document.getElementById('auth-form').style.display = 'block';
@@ -179,34 +255,28 @@
             if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
         }
 
-        // --- 3. 過去履歴の取得 (GET) & グラフ描画 ---
+        // --- 4. 双方向通信システム (GET/POST) ---
         async function fetchScoreHistory() {
             if (!globalUserIdHash) return;
+            writeLog(`GASエンドポイントへ履歴取得要求送信中 (GET)... URL: ${gasUrl.substring(0,30)}...`);
             
             try {
-                // リダイレクトおよびCORS対応のGETリクエスト射出
                 const response = await fetch(`${gasUrl}?userId=${globalUserIdHash}`);
-                if (!response.ok) throw new Error("Network response was not ok");
+                if (!response.ok) throw new Error(`HTTPステータスエラー: ${response.status}`);
                 const historyData = await response.json();
+                writeLog(`履歴取得成功。レコード数: ${historyData.length}件`);
                 renderChart(historyData);
             } catch (error) {
-                console.error("履歴取得エラー:", error);
-                // データが空、または初回ユーザーの場合は空のグラフをレンダリング
+                writeLog(`履歴取得例外発生 (初回ログインの可能性): ${error.message}`);
                 renderChart([]);
             }
         }
 
         function renderChart(data) {
             const ctx = document.getElementById('scoreChart').getContext('2d');
-            
-            // インスタンス重複バグの物理破壊
-            if (chartInstance) {
-                chartInstance.destroy();
-            }
+            if (chartInstance) { chartInstance.destroy(); }
 
-            // 時系列に沿ってソート
             data.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-
             const labels = data.map(item => {
                 const d = new Date(item.timestamp);
                 return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
@@ -216,9 +286,8 @@
             chartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: labels.length ? labels : ["データなし"],
+                    labels: labels.length ? labels : ["初プレイ待機"],
                     datasets: [{
-                        label: '過去スコア推移',
                         data: scores.length ? scores : [0],
                         borderColor: '#38bdf8',
                         backgroundColor: 'rgba(56, 189, 248, 0.1)',
@@ -239,33 +308,7 @@
             });
         }
 
-        // --- 4. ピアノUIの物理マッピング生成 ---
-        const pianoContainer = document.getElementById('piano-container');
-        const whiteNotes = [0, 2, 4, 5, 7, 9, 11];
-        let whiteKeyCount = 0;
-
-        for (let i = 0; i < TOTAL_KEYS; i++) {
-            const noteIndex = i % 12;
-            const isWhite = whiteNotes.includes(noteIndex);
-            const key = document.createElement('div');
-            
-            key.dataset.note = START_NOTE + i;
-            key.addEventListener('mousedown', () => handlePianoTap(START_NOTE + i));
-            key.addEventListener('touchstart', (e) => { e.preventDefault(); handlePianoTap(START_NOTE + i); });
-            
-            if (isWhite) {
-                key.className = 'key white-key';
-                pianoContainer.appendChild(key);
-                whiteKeyCount++;
-            } else {
-                key.className = 'key black-key';
-                // 100%幅をオクターブ白鍵総数(7*2=14)で除算し、左側からの物理位置を算定
-                key.style.left = `calc((100% / ${OCTAVES * 7}) * ${whiteKeyCount})`;
-                pianoContainer.appendChild(key);
-            }
-        }
-
-        // --- 5. 純音音響発振エンジン ---
+        // --- 5. 音響発振モジュール ---
         function playTone(midiNote, duration = 1000) {
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
@@ -276,7 +319,7 @@
             osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
             
             gain.gain.setValueAtTime(0, audioCtx.currentTime);
-            gain.gain.linearRampToValueAtTime(0.7, audioCtx.currentTime + 0.03); // クリックノイズ防止
+            gain.gain.linearRampToValueAtTime(0.6, audioCtx.currentTime + 0.02);
             gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration/1000);
 
             osc.connect(gain);
@@ -285,7 +328,7 @@
             osc.stop(audioCtx.currentTime + duration/1000);
         }
 
-        // --- 6. ゲームコアロジック＆状態遷移ステートマシン ---
+        // --- 6. ゲーム状態管理シーケンス ---
         function switchScreen(screenId) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active-screen'));
             document.getElementById(screenId).classList.add('active-screen');
@@ -293,6 +336,7 @@
 
         async function startGame() {
             if (!globalUserIdHash) return;
+            writeLog("セッションゲームループ開始。");
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             if (audioCtx.state === 'suspended') await audioCtx.resume();
 
@@ -313,23 +357,21 @@
             
             currentQuestion++;
             document.getElementById('question-counter').innerText = `Q: ${currentQuestion}/10`;
-            document.getElementById('feedback-label').innerText = "聴音中...";
+            document.getElementById('feedback-label').innerText = "解析中...";
             document.getElementById('feedback-label').style.color = 'var(--text-color)';
             document.getElementById('sub-feedback').innerText = "";
             
-            // 24鍵空間内から完全にランダムに出題音を決定
             targetNote = START_NOTE + Math.floor(Math.random() * TOTAL_KEYS);
             isWaitingAnswer = false;
 
             if (currentQuestion <= 5) {
-                // 1-5問: 絶対音感フェーズ (ノーヒント)
+                writeLog(`[第${currentQuestion}問] 絶対音感モード 出題準備完了。`);
                 setTimeout(() => startTimerAndAcceptAnswer(), 400);
             } else {
-                // 6-10問: 相対音感フェーズ (毎回基準音 C4 を提示)
+                writeLog(`[第${currentQuestion}問] 相対音感モード 基準音発振。`);
                 document.getElementById('feedback-label').innerText = "基準音 (C4) 再生中";
                 playTone(START_NOTE, 700);
                 setTimeout(() => {
-                    document.getElementById('feedback-label').innerText = "本音を聴いてください";
                     startTimerAndAcceptAnswer();
                 }, 1100);
             }
@@ -353,14 +395,14 @@
                 if (remaining < 35) timerBar.style.background = 'var(--high-color)';
                 
                 if (elapsed >= 3000) {
-                    processUserSelection(-1); // タイムアウト処理強制実行
+                    processUserSelection(-1);
                 }
             }, 16);
         }
 
         function handlePianoTap(midiNote) {
             if (!isWaitingAnswer) {
-                playTone(midiNote, 250); // 待機時間中の空打ち演奏用
+                playTone(midiNote, 250);
                 return;
             }
             playTone(midiNote, 400);
@@ -378,17 +420,15 @@
             const subLabel = document.getElementById('sub-feedback');
 
             if (answeredNote === -1) {
-                // タイムアウトケース
-                distance = 99; // タイムアウト識別子
+                distance = 99; // TimeOut識別コード
                 label.innerText = "Time Out";
                 label.style.color = 'var(--high-color)';
-                subLabel.innerText = "3秒以内にタップしてください";
+                subLabel.innerText = "制限時間(3000ms)を超過しました";
+                writeLog(`[結果] 第${currentQuestion}問: Time Out (0点)`);
             } else {
-                // 解答があったケース (誤差算出)
-                distance = answeredNote - targetNote; // プラス＝上ずり、マイナス＝下がり
-                
-                // 正の減衰関数によるスコアリングモデル
+                distance = answeredNote - targetNote;
                 const absDistance = Math.abs(distance);
+                
                 const baseScore = Math.max(0, 100 - (absDistance * 15));
                 const timeMultiplier = Math.max(0, 1 - (elapsed / 3000));
                 score = Math.floor(baseScore * timeMultiplier);
@@ -398,18 +438,18 @@
                     label.style.color = 'var(--perfect-color)';
                 } else if (distance > 0) {
                     label.innerText = `+${distance} (高すぎ) +${score}`;
-                    label.style.color = 'var(--high-color)'; // プラスは赤系
+                    label.style.color = 'var(--high-color)'; // プラスは赤
                 } else {
                     label.innerText = `${distance} (低すぎ) +${score}`;
-                    label.style.color = 'var(--low-color)';  // マイナスは青系
+                    label.style.color = 'var(--low-color)';  // マイナスは青
                 }
-                subLabel.innerText = `正解: ${getNoteName(targetNote)} / あなた: ${getNoteName(answeredNote)}`;
+                subLabel.innerText = `正解: ${NOTE_NAMES_ENG[targetNote%12]}${Math.floor(targetNote/12)-1} / あなた: ${NOTE_NAMES_ENG[answeredNote%12]}${Math.floor(answeredNote/12)-1}`;
+                writeLog(`[結果] 第${currentQuestion}問: 正解=${targetNote}, 解答=${answeredNote}, 誤差=${distance}, 応答=${Math.floor(elapsed)}ms, 獲得=${score}点`);
             }
 
             totalScore += score;
             document.getElementById('score-display').innerText = `Score: ${totalScore}`;
 
-            // 高解像度データロガーへ完全一次データを書き込み
             detailedLogs.push({
                 q: currentQuestion,
                 type: currentQuestion <= 5 ? "absolute" : "relative",
@@ -422,17 +462,11 @@
             setTimeout(nextQuestion, 1600);
         }
 
-        function getNoteName(midi) {
-            const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-            return names[midi % 12] + (Math.floor(midi / 12) - 1);
-        }
-
-        // --- 7. セキュリティ＆非同期データ通信層 (POST) ---
+        // --- 7. データパケット暗号化送信 (POST) ---
         async function endGameAndSubmit() {
             clearInterval(timerInterval);
-            document.getElementById('feedback-label').innerText = "全問終了！";
+            document.getElementById('feedback-label').innerText = "スコア送信中...";
             document.getElementById('feedback-label').style.color = 'var(--perfect-color)';
-            document.getElementById('sub-feedback').innerText = "データを安全に送信中...";
 
             const payload = {
                 userId: globalUserIdHash,
@@ -440,26 +474,25 @@
                 details: detailedLogs
             };
 
+            writeLog(`GASへ全問の構造化高解像度ログをPOST中... スコア: ${totalScore}`);
             try {
-                // CORSポリシーを完全回避するための no-cors モード
                 await fetch(gasUrl, {
                     method: 'POST',
                     mode: 'no-cors',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
+                writeLog("データパケットの送信処理命令をブラウザが射出しました。");
             } catch (e) {
-                console.error("データ送信エラー:", e);
+                writeLog(`送信失敗例外: ${e.message}`);
             }
 
-            // データ送信完了後、ハブへ自動帰還し最新成績をグラフにリロード
             setTimeout(async () => {
                 switchScreen('screen-hub');
                 await fetchScoreHistory();
             }, 1500);
         }
 
-        // ページロード時の初期化チェック
         window.addEventListener('DOMContentLoaded', async () => {
             const savedHash = localStorage.getItem("saved_user_hash");
             if (savedHash) {
