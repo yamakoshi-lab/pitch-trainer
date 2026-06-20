@@ -76,17 +76,18 @@
             display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
 
-        /* ステルス・デバッグロガー（最下部と同化する背景テクスチャ） */
+        /* コンソール・デバッグロガー（最下部ディスプレイ） */
         #stealth-logger {
-            width: 100%; height: 50px; background: rgba(15, 23, 42, 0.4);
-            border: none; border-top: 1px solid rgba(51, 65, 85, 0.3);
-            color: #64748b; font-family: monospace; font-size: 0.7rem;
-            padding: 5px 10px; resize: none; overflow-y: scroll;
-            opacity: 0.15; transition: opacity 0.2s ease, background 0.2s ease;
-            outline: none; z-index: 10;
+            width: 100%; height: 150px; background: rgba(10, 15, 30, 0.95);
+            border: none; border-top: 2px solid #0ea5e9;
+            color: #38bdf8; font-family: 'Courier New', Courier, monospace; font-size: 0.85rem;
+            padding: 10px; resize: none; overflow-y: scroll;
+            opacity: 1.0; outline: none; z-index: 9999;
+            box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.5);
+            user-select: text; -webkit-user-select: text;
         }
-        #stealth-logger:focus, #stealth-logger:hover {
-            opacity: 1.0; background: #020617; color: #38bdf8;
+        #stealth-logger:focus {
+            background: #020617; border-top-color: #22c55e; color: #22c55e;
         }
     </style>
 </head>
@@ -258,16 +259,23 @@
         // --- 4. 双方向通信システム (GET/POST) ---
         async function fetchScoreHistory() {
             if (!globalUserIdHash) return;
-            writeLog(`GASエンドポイントへ履歴取得要求送信中 (GET)... URL: ${gasUrl.substring(0,30)}...`);
+            writeLog(`[GET] 履歴取得開始. 対象URL: ${gasUrl}`);
+            writeLog(`[GET] パラメータ userId: ${globalUserIdHash}`);
             
             try {
-                const response = await fetch(`${gasUrl}?userId=${globalUserIdHash}`);
-                if (!response.ok) throw new Error(`HTTPステータスエラー: ${response.status}`);
+                const targetUrl = `${gasUrl}?userId=${globalUserIdHash}`;
+                const response = await fetch(targetUrl);
+                writeLog(`[GET] レスポンス受信. ステータス: ${response.status} (${response.statusText})`);
+                if (!response.ok) {
+                    throw new Error(`HTTPエラー: ${response.status} ${response.statusText}`);
+                }
                 const historyData = await response.json();
-                writeLog(`履歴取得成功。レコード数: ${historyData.length}件`);
+                writeLog(`[GET] 履歴取得成功。レコード数: ${historyData.length}件`);
+                writeLog(`[GET] 取得データ: ${JSON.stringify(historyData)}`);
                 renderChart(historyData);
             } catch (error) {
-                writeLog(`履歴取得例外発生 (初回ログインの可能性): ${error.message}`);
+                writeLog(`[GET] エラー発生: ${error.toString()}`);
+                writeLog(`[GET] 接続先のGASウェブアプリが「全員(Anyone)」でデプロイされているか、URLが正しいか確認してください。`);
                 renderChart([]);
             }
         }
@@ -474,17 +482,18 @@
                 details: detailedLogs
             };
 
-            writeLog(`GASへ全問の構造化高解像度ログをPOST中... スコア: ${totalScore}`);
+            writeLog(`[POST] スコア送信開始. 対象URL: ${gasUrl}`);
+            writeLog(`[POST] 送信ペイロード: ${JSON.stringify(payload)}`);
             try {
-                await fetch(gasUrl, {
+                const response = await fetch(gasUrl, {
                     method: 'POST',
-                    mode: 'no-cors',
+                    mode: 'no-cors', // no-corsのためレスポンス詳細はブラウザ制限で読めません
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                writeLog("データパケットの送信処理命令をブラウザが射出しました。");
+                writeLog(`[POST] 送信リクエスト射出完了 (mode: no-cors のため成功/失敗のステータスコードはブラウザ側で不透明として扱われます)`);
             } catch (e) {
-                writeLog(`送信失敗例外: ${e.message}`);
+                writeLog(`[POST] 送信処理中に例外発生: ${e.toString()}`);
             }
 
             setTimeout(async () => {
