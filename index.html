@@ -165,7 +165,7 @@
         <div id="game-header">
             <div id="status-bar">
                 <span id="question-counter">Q: 0/10</span>
-                <span id="score-display">Score: 0</span>
+                <span id="score-display">総誤差: 0</span>
             </div>
             <div id="timer-container"><div id="timer-bar"></div></div>
         </div>
@@ -414,7 +414,7 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: {
-                        y: { min: 0, max: 1000, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                        y: { min: 0, suggestedMax: 30, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
                         x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }
                     },
                     plugins: { legend: { display: false } }
@@ -458,7 +458,7 @@
             totalScore = 0;
             detailedLogs = [];
             
-            document.getElementById('score-display').innerText = `Score: 0`;
+            document.getElementById('score-display').innerText = `総誤差: 0`;
             switchScreen('screen-game');
             nextQuestion();
         }
@@ -528,41 +528,52 @@
             clearInterval(timerInterval);
             const elapsed = Math.min(3000, performance.now() - questionStartTime);
             
-            let score = 0;
+            let addedError = 0;
             let distance = 0;
             const label = document.getElementById('feedback-label');
             const subLabel = document.getElementById('sub-feedback');
 
             if (answeredNote === -1) {
                 distance = 99; // TimeOut識別コード
-                label.innerText = "Time Out";
+                addedError = 12; // タイムアウト時は1オクターブ分(12半音)の誤差ペナルティ
+                label.innerText = "Time Out (+12)";
                 label.style.color = 'var(--high-color)';
                 subLabel.innerText = "制限時間(3000ms)を超過しました";
-                writeLog(`[結果] 第${currentQuestion}問: Time Out (0点)`);
+                writeLog(`[結果] 第${currentQuestion}問: Time Out (誤差+12加算)`);
             } else {
                 distance = answeredNote - targetNote;
                 const absDistance = Math.abs(distance);
-                
-                const baseScore = Math.max(0, 100 - (absDistance * 15));
-                const timeMultiplier = Math.max(0, 1 - (elapsed / 3000));
-                score = Math.floor(baseScore * timeMultiplier);
+                addedError = absDistance;
 
                 if (distance === 0) {
-                    label.innerText = `Perfect! +${score}`;
+                    label.innerText = `Perfect! (誤差0)`;
                     label.style.color = 'var(--perfect-color)';
                 } else if (distance > 0) {
-                    label.innerText = `+${distance} (高すぎ) +${score}`;
+                    let msg = "";
+                    if (distance === 1) msg = "惜しい！少し高い (+1)";
+                    else if (distance === 2) msg = "少し高い (+2)";
+                    else if (distance >= 3 && distance <= 5) msg = `高い (+${distance})`;
+                    else msg = `かなり高い (+${distance})`;
+                    
+                    label.innerText = msg;
                     label.style.color = 'var(--high-color)'; // プラスは赤
                 } else {
-                    label.innerText = `${distance} (低すぎ) +${score}`;
+                    const absD = Math.abs(distance);
+                    let msg = "";
+                    if (absD === 1) msg = "惜しい！少し低い (-1)";
+                    else if (absD === 2) msg = "少し低い (-2)";
+                    else if (absD >= 3 && absD <= 5) msg = `低い (-${absD})`;
+                    else msg = `かなり低い (-${absD})`;
+                    
+                    label.innerText = msg;
                     label.style.color = 'var(--low-color)';  // マイナスは青
                 }
                 subLabel.innerText = `正解: ${NOTE_NAMES_ENG[targetNote%12]}${Math.floor(targetNote/12)-1} / あなた: ${NOTE_NAMES_ENG[answeredNote%12]}${Math.floor(answeredNote/12)-1}`;
-                writeLog(`[結果] 第${currentQuestion}問: 正解=${targetNote}, 解答=${answeredNote}, 誤差=${distance}, 応答=${Math.floor(elapsed)}ms, 獲得=${score}点`);
+                writeLog(`[結果] 第${currentQuestion}問: 正解=${targetNote}, 解答=${answeredNote}, 誤差=${distance > 0 ? "+" + distance : distance}, 応答=${Math.floor(elapsed)}ms, 加算誤差=${addedError}`);
             }
 
-            totalScore += score;
-            document.getElementById('score-display').innerText = `Score: ${totalScore}`;
+            totalScore += addedError;
+            document.getElementById('score-display').innerText = `総誤差: ${totalScore}`;
 
             detailedLogs.push({
                 q: currentQuestion,
