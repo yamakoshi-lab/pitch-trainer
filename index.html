@@ -142,6 +142,9 @@
 
     <textarea id="stealth-logger" readonly placeholder="[System Logs Event Stream]"></textarea>
 
+    <!-- ローカル用設定ファイル（.gitignoreによりGit対象外） -->
+    <script src="config.js"></script>
+
     <script>
         // --- 1. デバッグログ制御システム (進捗トレース) ---
         function writeLog(text) {
@@ -158,7 +161,7 @@
         const CONFIG_GAS_URL = "ENV_GAS_URL"; 
         let gasUrl = "https://script.google.com/macros/s/省略A/exec";
 
-        // URLパラメータからのGAS_URL設定検知
+        // URLパラメータからのGAS_URL設定検知 (URL指定も一応残します)
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.has("gasUrl")) {
             const gasUrlParam = urlParams.get("gasUrl");
@@ -171,15 +174,19 @@
             // Netlify等での自動置換後の本番URLを最優先
             gasUrl = CONFIG_GAS_URL;
             writeLog(`[設定] 本番環境（Netlify環境変数）のGAS URLを適用しました: ${gasUrl}`);
+        } else if (window.LOCAL_GAS_URL) {
+            // ローカルの config.js で定義されたURLを二番目に優先
+            gasUrl = window.LOCAL_GAS_URL;
+            writeLog(`[設定] ローカル設定ファイル (config.js) のGAS URLを適用しました: ${gasUrl}`);
         } else {
-            // ローカル環境の場合はlocalStorageから読み込み
+            // ローカル環境で config.js がない場合はlocalStorageから読み込み
             const savedDevUrl = localStorage.getItem("dev_gas_url");
             if (savedDevUrl) {
                 gasUrl = savedDevUrl;
                 writeLog(`[設定] ローカル保存されたGAS URLを適用しました: ${gasUrl}`);
             } else {
                 writeLog(`[警告] GAS_URLが未設定です。`);
-                writeLog(`[ガイド] 一度、アドレスバーのURL末尾に「?gasUrl=あなたのGASのWebアプリURL」を付けてアクセスしてください。次回から自動で保存・適用されます。`);
+                writeLog(`[ガイド] config.example.js をコピーして config.js を作成し、そこに本物のURLを記述してください（Gitにはコミットされません）。`);
             }
         }
 
