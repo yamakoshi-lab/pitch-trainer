@@ -304,6 +304,18 @@
         .kb-key.active .note-hint {
             color: #ffffff !important;
         }
+        .kb-key.ctrl-key {
+            background: #1e1b4b;
+            border-color: #312e81;
+            color: #a5b4fc;
+            width: 32px;
+        }
+        .kb-key.ctrl-key.active-ctrl {
+            background: #4f46e5 !important;
+            border-color: #6366f1 !important;
+            color: #ffffff !important;
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.8) !important;
+        }
     </style>
 </head>
 <body>
@@ -314,7 +326,14 @@
             <h1 class="guide-title">Pitch Trainer Pro</h1>
             <p class="guide-desc">PCのキーボードキーをタイプして直接解答することができます。以下は音程とキーの割り当てガイドです。</p>
             
-            <div class="keyboard-guide">
+            <!-- 切り替えスイッチ -->
+            <div style="display: flex; background: rgba(15, 23, 42, 0.8); padding: 5px; border-radius: 8px; border: 1px solid #334155; margin-bottom: 15px; width: 100%;">
+                <button id="btn-layout-2oct" onclick="switchLayout('2oct')" style="flex: 1; margin: 0; padding: 8px; font-size: 0.8rem; background: #2563eb; color: white; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; transition: all 0.2s ease;">2オクターブ型</button>
+                <button id="btn-layout-1oct" onclick="switchLayout('1oct')" style="flex: 1; margin: 0; padding: 8px; font-size: 0.8rem; background: transparent; color: #94a3b8; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; transition: all 0.2s ease;">1オクターブ型</button>
+            </div>
+
+            <!-- 2オクターブ用ガイド -->
+            <div id="guide-2oct" class="keyboard-guide">
                 <!-- 2段目 (Number Row) -->
                 <div class="kb-row">
                     <div class="kb-key dummy">Esc</div>
@@ -375,12 +394,75 @@
                     <div class="kb-key dummy">/</div>
                 </div>
             </div>
+
+            <!-- 1オクターブ用ガイド -->
+            <div id="guide-1oct" class="keyboard-guide" style="display: none;">
+                <!-- 2段目 (Number Row) -->
+                <div class="kb-row">
+                    <div class="kb-key dummy">Esc</div>
+                    <div class="kb-key dummy">1</div>
+                    <div class="kb-key dummy">2</div>
+                    <div class="kb-key dummy">3</div>
+                    <div class="kb-key dummy">4</div>
+                    <div class="kb-key dummy">5</div>
+                    <div class="kb-key dummy">6</div>
+                    <div class="kb-key dummy">7</div>
+                    <div class="kb-key dummy">8</div>
+                    <div class="kb-key dummy">9</div>
+                    <div class="kb-key dummy">0</div>
+                </div>
+                
+                <!-- 3段目 (QWERTY Row) -->
+                <div class="kb-row">
+                    <div class="kb-key dummy tab">Tab</div>
+                    <div class="kb-key dummy">Q</div>
+                    <div class="kb-key pitch-key black" data-kb="w">W<span class="note-hint">ド#4</span></div>
+                    <div class="kb-key pitch-key black" data-kb="e">E<span class="note-hint">レ#4</span></div>
+                    <div class="kb-key dummy">R</div>
+                    <div class="kb-key pitch-key black" data-kb="t">T<span class="note-hint">ファ#4</span></div>
+                    <div class="kb-key pitch-key black" data-kb="y">Y<span class="note-hint">ソ#4</span></div>
+                    <div class="kb-key pitch-key black" data-kb="u">U<span class="note-hint">ラ#4</span></div>
+                    <div class="kb-key dummy">I</div>
+                    <div class="kb-key pitch-key black" data-kb="o">O<span class="note-hint">ド#5</span></div>
+                    <div class="kb-key pitch-key black" data-kb="p">P<span class="note-hint">レ#5</span></div>
+                </div>
+
+                <!-- 4段目 (ASDF Row) -->
+                <div class="kb-row">
+                    <div class="kb-key dummy caps">Caps</div>
+                    <div class="kb-key pitch-key white" data-kb="a">A<span class="note-hint">ド4</span></div>
+                    <div class="kb-key pitch-key white" data-kb="s">S<span class="note-hint">レ4</span></div>
+                    <div class="kb-key pitch-key white" data-kb="d">D<span class="note-hint">ミ4</span></div>
+                    <div class="kb-key pitch-key white" data-kb="f">F<span class="note-hint">ファ4</span></div>
+                    <div class="kb-key pitch-key white" data-kb="g">G<span class="note-hint">ソ4</span></div>
+                    <div class="kb-key pitch-key white" data-kb="h">H<span class="note-hint">ラ4</span></div>
+                    <div class="kb-key pitch-key white" data-kb="j">J<span class="note-hint">シ4</span></div>
+                    <div class="kb-key pitch-key white" data-kb="k">K<span class="note-hint">ド5</span></div>
+                    <div class="kb-key pitch-key white" data-kb="l">L<span class="note-hint">レ5</span></div>
+                    <div class="kb-key pitch-key white" data-kb=";">;<span class="note-hint">ミ5</span></div>
+                </div>
+
+                <!-- 5段目 (ZXCV Row) -->
+                <div class="kb-row">
+                    <div class="kb-key dummy shift">Shift</div>
+                    <div class="kb-key ctrl-key active-ctrl" data-kb="z">Z<span class="note-hint" style="color:#a5b4fc; font-weight:bold;">低音域</span></div>
+                    <div class="kb-key ctrl-key" data-kb="x">X<span class="note-hint" style="color:#a5b4fc; font-weight:bold;">高音域</span></div>
+                    <div class="kb-key dummy">C</div>
+                    <div class="kb-key dummy">V</div>
+                    <div class="kb-key dummy">B</div>
+                    <div class="kb-key dummy">N</div>
+                    <div class="kb-key dummy">M</div>
+                    <div class="kb-key dummy">,</div>
+                    <div class="kb-key dummy">.</div>
+                    <div class="kb-key dummy">/</div>
+                </div>
+            </div>
             
-            <div style="margin-top: 30px; font-size: 0.75rem; color: #64748b; line-height: 1.6;">
-                <strong>音程の構成:</strong><br>
-                ・下段 (Z~M / S~J) ＝ オクターブ4 (C4~B4)<br>
-                ・上段 (Q~U / 2~7) ＝ オクターブ5 (C5~B5)<br>
-                ※タイピングと同時に鍵盤およびガイドが連動して光ります。
+            <div id="guide-info-box" style="margin-top: 20px; font-size: 0.75rem; color: #64748b; line-height: 1.6;">
+                <strong>2オクターブ型の構成:</strong><br>
+                ・下段 (Z~M / S~J) ＝ C4~B4<br>
+                ・上段 (Q~U / 2~7) ＝ C5~B5<br>
+                ※キーを押すと鍵盤とガイドが連動して光ります。
             </div>
         </div>
 
@@ -614,16 +696,92 @@
             }
         }
 
-        // ガイドキーへの色相割り当て
-        for (const midi in KEY_MAP) {
-            const keyInfo = KEY_MAP[midi];
-            const noteIndex = parseInt(midi) % 12;
-            const hue = NOTE_HUES[noteIndex];
-            const kbEl = document.querySelector(`.kb-key[data-kb="${keyInfo.key}"]`);
-            if (kbEl) {
-                kbEl.style.setProperty('--hue', hue);
+        // ガイドキーの色とテキストの動的更新
+        let currentLayout = '2oct'; // '2oct' or '1oct'
+        let octaveOffset = 0; // 0 (C4〜) or 12 (C5〜)
+
+        // 1オクターブ型（GarageBandスタイル）のマッピング定義（加算される半音数）
+        const KEY_MAP_1OCT = {
+            'a': 0, 's': 2, 'd': 4, 'f': 5, 'g': 7, 'h': 9, 'j': 11,
+            'k': 12, 'l': 14, ';': 16,
+            'w': 1, 'e': 3, 't': 6, 'y': 8, 'u': 10, 'o': 13, 'p': 15
+        };
+
+        function updateGuideColors() {
+            if (currentLayout === '2oct') {
+                for (const midi in KEY_MAP) {
+                    const keyInfo = KEY_MAP[midi];
+                    const noteIndex = parseInt(midi) % 12;
+                    const hue = NOTE_HUES[noteIndex];
+                    const kbEl = document.querySelector(`#guide-2oct .kb-key[data-kb="${keyInfo.key}"]`);
+                    if (kbEl) {
+                        kbEl.style.setProperty('--hue', hue);
+                    }
+                }
+            } else {
+                for (const char in KEY_MAP_1OCT) {
+                    const addSemitone = KEY_MAP_1OCT[char];
+                    const midi = 60 + octaveOffset + addSemitone;
+                    const noteIndex = midi % 12;
+                    const hue = NOTE_HUES[noteIndex];
+                    const kbEl = document.querySelector(`#guide-1oct .kb-key[data-kb="${char}"]`);
+                    if (kbEl) {
+                        kbEl.style.setProperty('--hue', hue);
+                        const hintEl = kbEl.querySelector('.note-hint');
+                        if (hintEl) {
+                            const noteName = NOTE_NAMES_JPN[noteIndex];
+                            const octaveNum = Math.floor(midi / 12) - 1;
+                            hintEl.innerText = `${noteName}${octaveNum}`;
+                        }
+                    }
+                }
+                
+                // ZとXのアクティブ状態
+                const zEl = document.querySelector(`#guide-1oct .kb-key[data-kb="z"]`);
+                const xEl = document.querySelector(`#guide-1oct .kb-key[data-kb="x"]`);
+                if (zEl && xEl) {
+                    if (octaveOffset === 0) {
+                        zEl.classList.add('active-ctrl');
+                        xEl.classList.remove('active-ctrl');
+                    } else {
+                        zEl.classList.remove('active-ctrl');
+                        xEl.classList.add('active-ctrl');
+                    }
+                }
             }
         }
+
+        function switchLayout(layout) {
+            currentLayout = layout;
+            const btn2oct = document.getElementById('btn-layout-2oct');
+            const btn1oct = document.getElementById('btn-layout-1oct');
+            const guide2oct = document.getElementById('guide-2oct');
+            const guide1oct = document.getElementById('guide-1oct');
+            const infoBox = document.getElementById('guide-info-box');
+            
+            if (layout === '2oct') {
+                btn2oct.style.background = '#2563eb';
+                btn2oct.style.color = '#ffffff';
+                btn1oct.style.background = 'transparent';
+                btn1oct.style.color = '#94a3b8';
+                guide2oct.style.display = 'flex';
+                guide1oct.style.display = 'none';
+                infoBox.innerHTML = `<strong>2オクターブ型の構成:</strong><br>・下段 (Z~M / S~J) ＝ C4~B4<br>・上段 (Q~U / 2~7) ＝ C5~B5<br>※キーを押すと鍵盤とガイドが連動して光ります。`;
+            } else {
+                btn2oct.style.background = 'transparent';
+                btn2oct.style.color = '#94a3b8';
+                btn1oct.style.background = '#2563eb';
+                btn1oct.style.color = '#ffffff';
+                guide2oct.style.display = 'none';
+                guide1oct.style.display = 'flex';
+                infoBox.innerHTML = `<strong>1オクターブ型の構成:</strong><br>・ホーム列 (A~;) ＝ 白鍵<br>・QWERTY列 (W~P) ＝ 黒鍵<br>・Z / X ＝ 低音域/高音域切り替え<br>※キーを押すと鍵盤とガイドが連動して光ります。`;
+            }
+            updateGuideColors();
+            writeLog(`[レイアウト] ${layout === '2oct' ? '2オクターブ型' : '1オクターブ型'} に切り替えました。`);
+        }
+
+        // 初期カラー適用
+        updateGuideColors();
 
         // PCキーボードのイベントリスナー登録
         const pressedKeys = new Set();
@@ -632,43 +790,100 @@
                 return;
             }
             const char = e.key.toLowerCase();
-            let matchedMidi = null;
-            for (const midi in KEY_MAP) {
-                if (KEY_MAP[midi].key === char) {
-                    matchedMidi = parseInt(midi);
-                    break;
+
+            if (currentLayout === '2oct') {
+                // 2オクターブ型
+                let matchedMidi = null;
+                for (const midi in KEY_MAP) {
+                    if (KEY_MAP[midi].key === char) {
+                        matchedMidi = parseInt(midi);
+                        break;
+                    }
                 }
-            }
-            if (matchedMidi !== null) {
-                if (pressedKeys.has(matchedMidi)) return; // リピート防止
-                pressedKeys.add(matchedMidi);
-                
-                const el = document.querySelector(`.key[data-note="${matchedMidi}"]`);
-                if (el) el.classList.add('key-active');
-                
-                const kbEl = document.querySelector(`.kb-key[data-kb="${char}"]`);
-                if (kbEl) kbEl.classList.add('active');
-                
-                handlePianoTap(matchedMidi);
+                if (matchedMidi !== null) {
+                    if (pressedKeys.has(matchedMidi)) return;
+                    pressedKeys.add(matchedMidi);
+                    
+                    const el = document.querySelector(`.key[data-note="${matchedMidi}"]`);
+                    if (el) el.classList.add('key-active');
+                    
+                    const kbEl = document.querySelector(`#guide-2oct .kb-key[data-kb="${char}"]`);
+                    if (kbEl) kbEl.classList.add('active');
+                    
+                    handlePianoTap(matchedMidi);
+                }
+            } else {
+                // 1オクターブ型
+                if (char === 'z') {
+                    if (octaveOffset !== 0) {
+                        octaveOffset = 0;
+                        updateGuideColors();
+                        writeLog("[オクターブ] 低音域 (C4〜B4) に切り替えました。");
+                    }
+                    const zEl = document.querySelector(`#guide-1oct .kb-key[data-kb="z"]`);
+                    if (zEl) zEl.classList.add('active');
+                } else if (char === 'x') {
+                    if (octaveOffset !== 12) {
+                        octaveOffset = 12;
+                        updateGuideColors();
+                        writeLog("[オクターブ] 高音域 (C5〜B5) に切り替えました。");
+                    }
+                    const xEl = document.querySelector(`#guide-1oct .kb-key[data-kb="x"]`);
+                    if (xEl) xEl.classList.add('active');
+                } else if (char in KEY_MAP_1OCT) {
+                    const midiNote = 60 + octaveOffset + KEY_MAP_1OCT[char];
+                    if (midiNote >= 60 && midiNote <= 83) {
+                        if (pressedKeys.has(midiNote)) return;
+                        pressedKeys.add(midiNote);
+                        
+                        const el = document.querySelector(`.key[data-note="${midiNote}"]`);
+                        if (el) el.classList.add('key-active');
+                        
+                        const kbEl = document.querySelector(`#guide-1oct .kb-key[data-kb="${char}"]`);
+                        if (kbEl) kbEl.classList.add('active');
+                        
+                        handlePianoTap(midiNote);
+                    }
+                }
             }
         });
         
         window.addEventListener('keyup', (e) => {
             const char = e.key.toLowerCase();
-            let matchedMidi = null;
-            for (const midi in KEY_MAP) {
-                if (KEY_MAP[midi].key === char) {
-                    matchedMidi = parseInt(midi);
-                    break;
+
+            if (currentLayout === '2oct') {
+                let matchedMidi = null;
+                for (const midi in KEY_MAP) {
+                    if (KEY_MAP[midi].key === char) {
+                        matchedMidi = parseInt(midi);
+                        break;
+                    }
                 }
-            }
-            if (matchedMidi !== null) {
-                pressedKeys.delete(matchedMidi);
-                const el = document.querySelector(`.key[data-note="${matchedMidi}"]`);
-                if (el) el.classList.remove('key-active');
-                
-                const kbEl = document.querySelector(`.kb-key[data-kb="${char}"]`);
-                if (kbEl) kbEl.classList.remove('active');
+                if (matchedMidi !== null) {
+                    pressedKeys.delete(matchedMidi);
+                    const el = document.querySelector(`.key[data-note="${matchedMidi}"]`);
+                    if (el) el.classList.remove('key-active');
+                    
+                    const kbEl = document.querySelector(`#guide-2oct .kb-key[data-kb="${char}"]`);
+                    if (kbEl) kbEl.classList.remove('active');
+                }
+            } else {
+                if (char === 'z') {
+                    const zEl = document.querySelector(`#guide-1oct .kb-key[data-kb="z"]`);
+                    if (zEl) zEl.classList.remove('active');
+                } else if (char === 'x') {
+                    const xEl = document.querySelector(`#guide-1oct .kb-key[data-kb="x"]`);
+                    if (xEl) xEl.classList.remove('active');
+                } else if (char in KEY_MAP_1OCT) {
+                    const midiNote = 60 + octaveOffset + KEY_MAP_1OCT[char];
+                    pressedKeys.delete(midiNote);
+                    
+                    const el = document.querySelector(`.key[data-note="${midiNote}"]`);
+                    if (el) el.classList.remove('key-active');
+                    
+                    const kbEl = document.querySelector(`#guide-1oct .kb-key[data-kb="${char}"]`);
+                    if (kbEl) kbEl.classList.remove('active');
+                }
             }
         });
 
