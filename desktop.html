@@ -673,12 +673,16 @@
                 key.className += ' key white-key';
                 labelContainer.innerHTML = `<span>${NOTE_NAMES_ENG[noteIndex]}${octave}</span><span>${NOTE_NAMES_JPN[noteIndex]}</span><span class="label-hz">${hz}Hz</span>`;
                 key.appendChild(labelContainer);
+                
+                const cap = document.createElement('span');
+                cap.className = 'keycap';
                 if (keyInfo) {
-                    const cap = document.createElement('span');
-                    cap.className = 'keycap';
                     cap.innerText = keyInfo.label;
-                    key.appendChild(cap);
+                } else {
+                    cap.style.display = 'none';
                 }
+                key.appendChild(cap);
+                
                 pianoContainer.appendChild(key);
                 whiteKeyCount++;
             } else {
@@ -686,12 +690,16 @@
                 key.style.left = `calc((100% / ${OCTAVES * 7}) * ${whiteKeyCount})`;
                 labelContainer.innerHTML = `${NOTE_NAMES_ENG[noteIndex]}${octave} • ${NOTE_NAMES_JPN[noteIndex]} • ${hz}Hz`;
                 key.appendChild(labelContainer);
+                
+                const cap = document.createElement('span');
+                cap.className = 'keycap';
                 if (keyInfo) {
-                    const cap = document.createElement('span');
-                    cap.className = 'keycap';
                     cap.innerText = keyInfo.label;
-                    key.appendChild(cap);
+                } else {
+                    cap.style.display = 'none';
                 }
+                key.appendChild(cap);
+                
                 pianoContainer.appendChild(key);
             }
         }
@@ -751,6 +759,43 @@
             }
         }
 
+        function updatePianoKeycaps() {
+            // すべての鍵盤のキーキャップ表示を一旦クリア
+            document.querySelectorAll('.key .keycap').forEach(cap => {
+                cap.innerText = '';
+                cap.style.display = 'none';
+            });
+
+            if (currentLayout === '2oct') {
+                // 2オクターブ型：KEY_MAP定義通りのキーキャップを表示
+                for (const midi in KEY_MAP) {
+                    const keyInfo = KEY_MAP[midi];
+                    const keyEl = document.querySelector(`.key[data-note="${midi}"]`);
+                    if (keyEl) {
+                        const cap = keyEl.querySelector('.keycap');
+                        if (cap) {
+                            cap.innerText = keyInfo.label;
+                            cap.style.display = 'inline-flex';
+                        }
+                    }
+                }
+            } else {
+                // 1オクターブ型：現在のオクターブ位置に応じたキーキャップを割り当て
+                for (const char in KEY_MAP_1OCT) {
+                    const addSemitone = KEY_MAP_1OCT[char];
+                    const midi = 60 + octaveOffset + addSemitone;
+                    const keyEl = document.querySelector(`.key[data-note="${midi}"]`);
+                    if (keyEl) {
+                        const cap = keyEl.querySelector('.keycap');
+                        if (cap) {
+                            cap.innerText = char.toUpperCase();
+                            cap.style.display = 'inline-flex';
+                        }
+                    }
+                }
+            }
+        }
+
         function switchLayout(layout) {
             currentLayout = layout;
             const btn2oct = document.getElementById('btn-layout-2oct');
@@ -777,11 +822,13 @@
                 infoBox.innerHTML = `<strong>1オクターブ型の構成:</strong><br>・ホーム列 (A~;) ＝ 白鍵<br>・QWERTY列 (W~P) ＝ 黒鍵<br>・Z / X ＝ 低音域/高音域切り替え<br>※キーを押すと鍵盤とガイドが連動して光ります。`;
             }
             updateGuideColors();
+            updatePianoKeycaps();
             writeLog(`[レイアウト] ${layout === '2oct' ? '2オクターブ型' : '1オクターブ型'} に切り替えました。`);
         }
 
         // 初期カラー適用
         updateGuideColors();
+        updatePianoKeycaps();
 
         // PCキーボードのイベントリスナー登録
         const pressedKeys = new Set();
@@ -818,6 +865,7 @@
                     if (octaveOffset !== 0) {
                         octaveOffset = 0;
                         updateGuideColors();
+                        updatePianoKeycaps();
                         writeLog("[オクターブ] 低音域 (C4〜B4) に切り替えました。");
                     }
                     const zEl = document.querySelector(`#guide-1oct .kb-key[data-kb="z"]`);
@@ -826,6 +874,7 @@
                     if (octaveOffset !== 12) {
                         octaveOffset = 12;
                         updateGuideColors();
+                        updatePianoKeycaps();
                         writeLog("[オクターブ] 高音域 (C5〜B5) に切り替えました。");
                     }
                     const xEl = document.querySelector(`#guide-1oct .kb-key[data-kb="x"]`);
