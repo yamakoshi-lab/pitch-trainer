@@ -165,7 +165,7 @@
         <div id="game-header">
             <div id="status-bar">
                 <span id="question-counter">Q: 0/10</span>
-                <span id="score-display">総誤差: 0</span>
+                <span id="score-display">総誤差: 0 | 反応時間: 0.00秒</span>
             </div>
             <div id="timer-container"><div id="timer-bar"></div></div>
         </div>
@@ -241,7 +241,8 @@
         let globalUserIdHash = null;
 
         let currentQuestion = 0;
-        let totalScore = 0;
+        let totalScore = 0; // 総誤差 (半音)
+        let totalTime = 0;  // 総反応時間 (ms)
         let targetNote = 0;
         let isWaitingAnswer = false;
         let questionStartTime = 0;
@@ -396,19 +397,32 @@
                 return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
             });
             const scores = data.map(item => item.score);
+            const times = data.map(item => item.time ? (item.time / 1000).toFixed(1) : 0);
 
             chartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: labels.length ? labels : ["初プレイ待機"],
-                    datasets: [{
-                        data: scores.length ? scores : [0],
-                        borderColor: '#38bdf8',
-                        backgroundColor: 'rgba(56, 189, 248, 0.1)',
-                        borderWidth: 2,
-                        tension: 0.1,
-                        fill: true
-                    }]
+                    datasets: [
+                        {
+                            label: '総誤差 (半音)',
+                            data: scores.length ? scores : [0],
+                            borderColor: '#38bdf8',
+                            backgroundColor: 'rgba(56, 189, 248, 0.05)',
+                            borderWidth: 2,
+                            tension: 0.1,
+                            fill: false
+                        },
+                        {
+                            label: '総反応時間 (秒)',
+                            data: times.length ? times : [0],
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.05)',
+                            borderWidth: 2,
+                            tension: 0.1,
+                            fill: false
+                        }
+                    ]
                 },
                 options: {
                     responsive: true,
@@ -417,7 +431,12 @@
                         y: { min: 0, suggestedMax: 30, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
                         x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }
                     },
-                    plugins: { legend: { display: false } }
+                    plugins: { 
+                        legend: { 
+                            display: true,
+                            labels: { color: '#94a3b8', font: { size: 10 } }
+                        } 
+                    }
                 }
             });
         }
@@ -456,9 +475,10 @@
 
             currentQuestion = 0;
             totalScore = 0;
+            totalTime = 0;
             detailedLogs = [];
             
-            document.getElementById('score-display').innerText = `総誤差: 0`;
+            document.getElementById('score-display').innerText = `総誤差: 0 | 反応時間: 0.00秒`;
             switchScreen('screen-game');
             nextQuestion();
         }
@@ -573,7 +593,8 @@
             }
 
             totalScore += addedError;
-            document.getElementById('score-display').innerText = `総誤差: ${totalScore}`;
+            totalTime += elapsed;
+            document.getElementById('score-display').innerText = `総誤差: ${totalScore} | 反応時間: ${(totalTime / 1000).toFixed(2)}秒`;
 
             detailedLogs.push({
                 q: currentQuestion,
@@ -596,6 +617,7 @@
             const payload = {
                 userId: globalUserIdHash,
                 totalScore: totalScore,
+                totalTime: totalTime,
                 details: detailedLogs
             };
 
