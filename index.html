@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pitch Trainer - Absolute & Relative</title>
+    <title>Pitch Trainer Pro</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --bg-color: #0f172a;
@@ -11,6 +12,9 @@
             --white-key: #ffffff;
             --black-key: #1e293b;
             --active-key: #38bdf8;
+            --perfect-color: #22c55e;
+            --high-color: #ef4444;
+            --low-color: #0ea5e9;
         }
         * { box-sizing: border-box; touch-action: manipulation; }
         body {
@@ -18,100 +22,236 @@
             font-family: -apple-system, sans-serif; display: flex; flex-direction: column;
             height: 100vh; overflow: hidden;
         }
-        #header { padding: 10px 20px; text-align: center; }
-        #status-bar {
-            display: flex; justify-content: space-between; font-size: 1.2rem;
-            font-weight: bold; margin-bottom: 10px;
-        }
-        #timer-bar-container { width: 100%; height: 10px; background: #334155; border-radius: 5px; }
-        #timer-bar { width: 100%; height: 100%; background: #22c55e; transition: width 0.1s linear; }
         
-        #message-area { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; text-align: center; padding: 0 20px;}
+        /* 画面コンポーネントの制御クラス */
+        .screen { display: none; width: 100%; height: 100%; flex-direction: column; padding: 20px; overflow-y: auto; }
+        .active-screen { display: flex; }
+
+        /* 認証・開始画面のスタイル */
+        .container { max-width: 450px; margin: 0 auto; width: 100%; text-align: center; }
+        .input-group { margin-bottom: 15px; text-align: left; }
+        label { display: block; margin-bottom: 5px; font-size: 0.9rem; color: #94a3b8; }
+        input { width: 100%; padding: 12px; font-size: 1rem; border-radius: 6px; border: 1px solid #334155; background: #1e293b; color: white; text-align: center; }
+        button { width: 100%; padding: 14px; font-size: 1.1rem; font-weight: bold; border: none; border-radius: 6px; background: #2563eb; color: white; cursor: pointer; margin-top: 10px; }
+        button:active { background: #1d4ed8; }
         
-        /* Piano UI Matrix (2 Octaves) */
+        /* グラフエリア */
+        #graph-container { width: 100%; margin-top: 20px; background: #1e293b; border-radius: 8px; padding: 10px; min-height: 200px; }
+
+        /* ゲームプレイ画面のスタイル */
+        #game-header { width: 100%; display: flex; flex-direction: column; align-items: center; margin-bottom: 10px; }
+        #status-bar { width: 100%; display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: bold; padding: 5px 0; }
+        #timer-container { width: 100%; height: 8px; background: #334155; border-radius: 4px; overflow: hidden; }
+        #timer-bar { width: 100%; height: 100%; background: var(--perfect-color); transition: width 0.016s linear; }
+        
+        #message-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 10px; }
+        #feedback-label { font-size: 2rem; font-weight: bold; margin-bottom: 5px; }
+        #sub-feedback { font-size: 1.1rem; color: #94a3b8; }
+
+        /* ピアノ物理マトリクス（2オクターブ固定） */
         #piano-container {
-            height: 40vh; width: 100%; position: relative; background: #000;
-            display: flex; border-top: 2px solid #334;
+            height: 35vh; width: 100%; position: relative; background: #000;
+            display: flex; border-top: 2px solid #334155; margin-top: auto;
         }
-        .key { cursor: pointer; position: relative; border: 1px solid #ccc; border-radius: 0 0 5px 5px; }
+        .key { position: relative; border: 1px solid #cbd5e1; border-radius: 0 0 6px 6px; }
         .white-key { flex: 1; background: var(--white-key); z-index: 1; }
         .black-key {
             position: absolute; background: var(--black-key); z-index: 2;
-            width: 4.5%; height: 60%; top: 0; margin-left: -2.25%; border-radius: 0 0 4px 4px;
+            width: 4.3%; height: 60%; /* 白鍵の5分の3 (60%) の縦幅に固定 */
+            margin-left: -2.15%; border-radius: 0 0 4px 4px; border: 1px solid #000;
         }
-        .white-key:active, .black-key:active { background: var(--active-key); }
-        
-        #overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(15, 23, 42, 0.95); z-index: 100;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-        }
-        button {
-            padding: 15px 30px; font-size: 1.2rem; font-weight: bold; border: none;
-            border-radius: 8px; background: #3b82f6; color: white; margin-top: 20px;
-        }
-        input { padding: 10px; font-size: 1rem; border-radius: 5px; border: none; text-align: center; margin-bottom: 10px;}
+        .white-key:active { background: var(--active-key); }
+        .black-key:active { background: var(--active-key); }
     </style>
 </head>
 <body>
 
-    <div id="overlay">
-        <h2>Pitch Trainer</h2>
-        <p>1-5問: 絶対音感 (基準音なし)</p>
-        <p>6-10問: 相対音感 (基準音 C4 あり)</p>
-        <p>各問題 3秒以内 に解答してください。</p>
-        <input type="text" id="anon-id" readonly>
-        <button onclick="startGame()">テスト開始</button>
+    <div id="screen-hub" class="screen active-screen">
+        <div class="container">
+            <h2>Pitch Trainer Pro</h2>
+            
+            <div id="auth-form">
+                <div class="input-group">
+                    <label>メールアドレス（ハッシュ種になります）</label>
+                    <input type="email" id="user-email" placeholder="example@domain.com">
+                </div>
+                <div class="input-group">
+                    <label>4桁の暗証番号 (PIN)</label>
+                    <input type="password" id="user-pin" pattern="\d{4}" maxlength="4" placeholder="1234">
+                </div>
+                <button onclick="handleLogin()">ログイン（履歴読み込み）</button>
+            </div>
+
+            <div id="user-status" style="display:none; margin-bottom: 15px;">
+                <p id="display-user-id" style="font-family:monospace; background:#1e293b; padding:8px; border-radius:4px; font-size:0.85rem;"></p>
+                <button onclick="changeUser()" style="background:#475569; font-size:0.9rem; padding:6px; margin:0;">別のアカウントにする</button>
+            </div>
+
+            <div id="graph-container">
+                <canvas id="scoreChart"></canvas>
+            </div>
+
+            <button id="btn-start-game" onclick="startGame()" style="display:none; background:#22c55e; margin-top:20px; font-size:1.3rem;">テスト開始</button>
+        </div>
     </div>
 
-    <div id="header">
-        <div id="status-bar">
-            <span id="question-counter">Q: 0/10</span>
-            <span id="score-display">Score: 0</span>
+    <div id="screen-game" class="screen">
+        <div id="game-header">
+            <div id="status-bar">
+                <span id="question-counter">Q: 0/10</span>
+                <span id="score-display">Score: 0</span>
+            </div>
+            <div id="timer-container"><div id="timer-bar"></div></div>
         </div>
-        <div id="timer-bar-container"><div id="timer-bar"></div></div>
+
+        <div id="message-area">
+            <div id="feedback-label">準備完了</div>
+            <div id="sub-feedback"></div>
+        </div>
+
+        <div id="piano-container">
+            </div>
     </div>
-
-    <div id="message-area">準備完了</div>
-
-    <div id="piano-container">
-        </div>
 
     <script>
-        // --- 1. 匿名ID生成と永続化 ---
-        function generateAnonId() {
-            const chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-            const randomArray = new Uint8Array(8);
-            crypto.getRandomValues(randomArray);
-            let id = '';
-            for (let i = 0; i < 8; i++) id += chars[randomArray[i] % chars.length];
-            return 'ID:' + id;
-        }
-        let anonUserId = localStorage.getItem("pitch_app_anon_id");
-        if (!anonUserId) {
-            anonUserId = generateAnonId();
-            localStorage.setItem("pitch_app_anon_id", anonUserId);
-        }
-        document.getElementById('anon-id').value = anonUserId;
+        // --- 1. インフラストラクチャ基本定数 ---
+        // Netlifyの環境変数が置換されない場合のフォールバック用。本番デプロイ時は環境変数経由、または直接書き換えてください。
+        const CONFIG_GAS_URL = "GAS_URL"; 
+        const gasUrl = CONFIG_GAS_URL === "GAS_URL" ? "https://script.google.com/macros/s/省略A/exec" : CONFIG_GAS_URL;
 
-        // --- 2. 物理的制約と数理モデル（2オクターブ） ---
         const OCTAVES = 2;
-        const START_NOTE = 60; // C4
-        const TOTAL_KEYS = OCTAVES * 12;
-        let audioCtx;
+        const START_NOTE = 60; // C4 (真ん中のド) から開始
+        const TOTAL_KEYS = OCTAVES * 12; // 24鍵
         
-        // ピアノUI描画 (O(N) 計算量)
+        let audioCtx;
+        let chartInstance = null;
+        let globalUserIdHash = null;
+
+        // ゲーム状態変数
+        let currentQuestion = 0;
+        let totalScore = 0;
+        let targetNote = 0;
+        let isWaitingAnswer = false;
+        let questionStartTime = 0;
+        let timerInterval;
+        let detailedLogs = []; // 一問ごとの高解像度データロガー配列
+
+        // --- 2. クライアントサイド・ハッシュ安全認証 (SHA-256) ---
+        async function calculateHash(email, pin) {
+            const encoder = new TextEncoder();
+            // 辞書攻撃を無効化するため、固定ソルトと結合してストレッチング
+            const secretSalt = "pitch_salted_token_2026";
+            const data = encoder.encode(email.trim().toLowerCase() + pin.trim() + secretSalt);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        async function handleLogin() {
+            const email = document.getElementById('user-email').value;
+            const pin = document.getElementById('user-pin').value;
+            
+            if (!email || pin.length !== 4) {
+                alert("有効なメールアドレスと4桁の暗証番号を入力してください。");
+                return;
+            }
+
+            globalUserIdHash = await calculateHash(email, pin);
+            localStorage.setItem("saved_user_hash", globalUserIdHash);
+            
+            showAuthenticatedUI();
+            await fetchScoreHistory();
+        }
+
+        function showAuthenticatedUI() {
+            document.getElementById('auth-form').style.display = 'none';
+            document.getElementById('user-status').style.display = 'block';
+            document.getElementById('display-user-id').innerText = `ユーザーID: ${globalUserIdHash.substring(0, 12)}...`;
+            document.getElementById('btn-start-game').style.display = 'block';
+        }
+
+        function changeUser() {
+            globalUserIdHash = null;
+            localStorage.removeItem("saved_user_hash");
+            document.getElementById('auth-form').style.display = 'block';
+            document.getElementById('user-status').style.display = 'none';
+            document.getElementById('btn-start-game').style.display = 'none';
+            if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+        }
+
+        // --- 3. 過去履歴の取得 (GET) & グラフ描画 ---
+        async function fetchScoreHistory() {
+            if (!globalUserIdHash) return;
+            
+            try {
+                // リダイレクトおよびCORS対応のGETリクエスト射出
+                const response = await fetch(`${gasUrl}?userId=${globalUserIdHash}`);
+                if (!response.ok) throw new Error("Network response was not ok");
+                const historyData = await response.json();
+                renderChart(historyData);
+            } catch (error) {
+                console.error("履歴取得エラー:", error);
+                // データが空、または初回ユーザーの場合は空のグラフをレンダリング
+                renderChart([]);
+            }
+        }
+
+        function renderChart(data) {
+            const ctx = document.getElementById('scoreChart').getContext('2d');
+            
+            // インスタンス重複バグの物理破壊
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            // 時系列に沿ってソート
+            data.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+            const labels = data.map(item => {
+                const d = new Date(item.timestamp);
+                return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+            });
+            const scores = data.map(item => item.score);
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels.length ? labels : ["データなし"],
+                    datasets: [{
+                        label: '過去スコア推移',
+                        data: scores.length ? scores : [0],
+                        borderColor: '#38bdf8',
+                        backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.1,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { min: 0, max: 1000, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                        x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        // --- 4. ピアノUIの物理マッピング生成 ---
         const pianoContainer = document.getElementById('piano-container');
-        const whiteNotes = [0, 2, 4, 5, 7, 9, 11]; // 白鍵の相対インデックス
+        const whiteNotes = [0, 2, 4, 5, 7, 9, 11];
         let whiteKeyCount = 0;
 
         for (let i = 0; i < TOTAL_KEYS; i++) {
             const noteIndex = i % 12;
             const isWhite = whiteNotes.includes(noteIndex);
             const key = document.createElement('div');
+            
             key.dataset.note = START_NOTE + i;
-            key.addEventListener('mousedown', () => handleTap(START_NOTE + i));
-            key.addEventListener('touchstart', (e) => { e.preventDefault(); handleTap(START_NOTE + i); });
+            key.addEventListener('mousedown', () => handlePianoTap(START_NOTE + i));
+            key.addEventListener('touchstart', (e) => { e.preventDefault(); handlePianoTap(START_NOTE + i); });
             
             if (isWhite) {
                 key.className = 'key white-key';
@@ -119,24 +259,24 @@
                 whiteKeyCount++;
             } else {
                 key.className = 'key black-key';
-                // 白鍵の幅に依存した物理的配置
+                // 100%幅をオクターブ白鍵総数(7*2=14)で除算し、左側からの物理位置を算定
                 key.style.left = `calc((100% / ${OCTAVES * 7}) * ${whiteKeyCount})`;
                 pianoContainer.appendChild(key);
             }
         }
 
-        // --- 3. 音響発振エンジン (レイテンシ < 10ms) ---
+        // --- 5. 純音音響発振エンジン ---
         function playTone(midiNote, duration = 1000) {
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
+            
             osc.type = 'sine';
             osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
             
-            // ポップノイズ除去のためのエンベロープ（物理減衰シミュレーション）
             gain.gain.setValueAtTime(0, audioCtx.currentTime);
-            gain.gain.linearRampToValueAtTime(0.8, audioCtx.currentTime + 0.05);
+            gain.gain.linearRampToValueAtTime(0.7, audioCtx.currentTime + 0.03); // クリックノイズ防止
             gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration/1000);
 
             osc.connect(gain);
@@ -145,47 +285,53 @@
             osc.stop(audioCtx.currentTime + duration/1000);
         }
 
-        // --- 4. ゲームループ（状態遷移マトリクス） ---
-        let currentQuestion = 0;
-        const totalQuestions = 10;
-        let totalScore = 0;
-        let targetNote = 0;
-        let isWaitingAnswer = false;
-        let questionStartTime = 0;
-        let timerInterval;
+        // --- 6. ゲームコアロジック＆状態遷移ステートマシン ---
+        function switchScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active-screen'));
+            document.getElementById(screenId).classList.add('active-screen');
+        }
 
         async function startGame() {
-            document.getElementById('overlay').style.display = 'none';
+            if (!globalUserIdHash) return;
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             if (audioCtx.state === 'suspended') await audioCtx.resume();
-            
+
             currentQuestion = 0;
             totalScore = 0;
+            detailedLogs = [];
+            
+            document.getElementById('score-display').innerText = `Score: 0`;
+            switchScreen('screen-game');
             nextQuestion();
         }
 
         function nextQuestion() {
-            if (currentQuestion >= totalQuestions) {
-                endGame();
+            if (currentQuestion >= 10) {
+                endGameAndSubmit();
                 return;
             }
             
             currentQuestion++;
             document.getElementById('question-counter').innerText = `Q: ${currentQuestion}/10`;
+            document.getElementById('feedback-label').innerText = "聴音中...";
+            document.getElementById('feedback-label').style.color = 'var(--text-color)';
+            document.getElementById('sub-feedback').innerText = "";
+            
+            // 24鍵空間内から完全にランダムに出題音を決定
             targetNote = START_NOTE + Math.floor(Math.random() * TOTAL_KEYS);
             isWaitingAnswer = false;
 
-            // Phase分割: 1-5問(絶対音感), 6-10問(相対音感)
             if (currentQuestion <= 5) {
-                document.getElementById('message-area').innerText = "音を当ててください！";
-                setTimeout(() => startTimerAndAcceptAnswer(), 200);
+                // 1-5問: 絶対音感フェーズ (ノーヒント)
+                setTimeout(() => startTimerAndAcceptAnswer(), 400);
             } else {
-                document.getElementById('message-area').innerText = "基準音(C4) ...";
-                playTone(START_NOTE, 800); // 基準音 C4 を鳴らす
+                // 6-10問: 相対音感フェーズ (毎回基準音 C4 を提示)
+                document.getElementById('feedback-label').innerText = "基準音 (C4) 再生中";
+                playTone(START_NOTE, 700);
                 setTimeout(() => {
-                    document.getElementById('message-area').innerText = "この音は？";
+                    document.getElementById('feedback-label').innerText = "本音を聴いてください";
                     startTimerAndAcceptAnswer();
-                }, 1000);
+                }, 1100);
             }
         }
 
@@ -196,7 +342,7 @@
             
             const timerBar = document.getElementById('timer-bar');
             timerBar.style.width = '100%';
-            timerBar.style.background = '#22c55e';
+            timerBar.style.background = 'var(--perfect-color)';
             
             clearInterval(timerInterval);
             timerInterval = setInterval(() => {
@@ -204,85 +350,124 @@
                 const remaining = Math.max(0, 100 - (elapsed / 3000) * 100);
                 timerBar.style.width = `${remaining}%`;
                 
-                if (remaining < 30) timerBar.style.background = '#ef4444';
+                if (remaining < 35) timerBar.style.background = 'var(--high-color)';
                 
                 if (elapsed >= 3000) {
-                    processAnswer(-1); // タイムアウト
+                    processUserSelection(-1); // タイムアウト処理強制実行
                 }
-            }, 16); // 60fps更新
+            }, 16);
         }
 
-        function handleTap(midiNote) {
+        function handlePianoTap(midiNote) {
             if (!isWaitingAnswer) {
-                playTone(midiNote, 300); // ゲーム外の遊び弾き用
+                playTone(midiNote, 250); // 待機時間中の空打ち演奏用
                 return;
             }
-            playTone(midiNote, 500);
-            processAnswer(midiNote);
+            playTone(midiNote, 400);
+            processUserSelection(midiNote);
         }
 
-        function processAnswer(answeredNote) {
+        function processUserSelection(answeredNote) {
             isWaitingAnswer = false;
             clearInterval(timerInterval);
-            const elapsed = performance.now() - questionStartTime;
+            const elapsed = Math.min(3000, performance.now() - questionStartTime);
             
             let score = 0;
+            let distance = 0;
+            const label = document.getElementById('feedback-label');
+            const subLabel = document.getElementById('sub-feedback');
+
             if (answeredNote === -1) {
-                document.getElementById('message-area').innerText = "Time Out!";
+                // タイムアウトケース
+                distance = 99; // タイムアウト識別子
+                label.innerText = "Time Out";
+                label.style.color = 'var(--high-color)';
+                subLabel.innerText = "3秒以内にタップしてください";
             } else {
-                const distance = Math.abs(answeredNote - targetNote);
-                // 距離と時間に基づく正の減衰関数スコア計算
-                const baseScore = Math.max(0, 100 - (distance * 15));
+                // 解答があったケース (誤差算出)
+                distance = answeredNote - targetNote; // プラス＝上ずり、マイナス＝下がり
+                
+                // 正の減衰関数によるスコアリングモデル
+                const absDistance = Math.abs(distance);
+                const baseScore = Math.max(0, 100 - (absDistance * 15));
                 const timeMultiplier = Math.max(0, 1 - (elapsed / 3000));
                 score = Math.floor(baseScore * timeMultiplier);
-                
+
                 if (distance === 0) {
-                    document.getElementById('message-area').innerText = `Perfect! +${score}`;
+                    label.innerText = `Perfect! +${score}`;
+                    label.style.color = 'var(--perfect-color)';
+                } else if (distance > 0) {
+                    label.innerText = `+${distance} (高すぎ) +${score}`;
+                    label.style.color = 'var(--high-color)'; // プラスは赤系
                 } else {
-                    document.getElementById('message-area').innerText = `Miss (誤差:${distance}) +${score}`;
+                    label.innerText = `${distance} (低すぎ) +${score}`;
+                    label.style.color = 'var(--low-color)';  // マイナスは青系
                 }
+                subLabel.innerText = `正解: ${getNoteName(targetNote)} / あなた: ${getNoteName(answeredNote)}`;
             }
-            
+
             totalScore += score;
             document.getElementById('score-display').innerText = `Score: ${totalScore}`;
-            
-            setTimeout(nextQuestion, 1500);
+
+            // 高解像度データロガーへ完全一次データを書き込み
+            detailedLogs.push({
+                q: currentQuestion,
+                type: currentQuestion <= 5 ? "absolute" : "relative",
+                target: targetNote,
+                answered: answeredNote,
+                distance: distance === 99 ? "timeout" : distance,
+                time_ms: Math.floor(elapsed)
+            });
+
+            setTimeout(nextQuestion, 1600);
         }
 
-        // --- 5. セキュリティ＆通信層 ---
-        async function endGame() {
-            document.getElementById('message-area').innerText = `Finish! Total Score: ${totalScore}\nデータを送信中...`;
-            
-            // Netlify環境変数が注入されるプレースホルダー
-            // ローカルテスト時は一時的に本物のGAS URLに書き換えてください
-            const gasUrl = "YOUR_GAS_URL_HERE"; 
-            
-            // PBKDF2/SHA-256 エミュレート (軽量ハッシュ)
-            const encoder = new TextEncoder();
-            const data = encoder.encode(anonUserId + totalScore + "pitch_secret");
-            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            const passHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        function getNoteName(midi) {
+            const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+            return names[midi % 12] + (Math.floor(midi / 12) - 1);
+        }
+
+        // --- 7. セキュリティ＆非同期データ通信層 (POST) ---
+        async function endGameAndSubmit() {
+            clearInterval(timerInterval);
+            document.getElementById('feedback-label').innerText = "全問終了！";
+            document.getElementById('feedback-label').style.color = 'var(--perfect-color)';
+            document.getElementById('sub-feedback').innerText = "データを安全に送信中...";
 
             const payload = {
-                username: anonUserId,
-                passHash: passHash,
-                score: totalScore,
-                nonce: Math.floor(Math.random() * 10000).toString()
+                userId: globalUserIdHash,
+                totalScore: totalScore,
+                details: detailedLogs
             };
 
             try {
-                const response = await fetch(gasUrl, {
+                // CORSポリシーを完全回避するための no-cors モード
+                await fetch(gasUrl, {
                     method: 'POST',
-                    mode: 'no-cors', // CORS完全回避
+                    mode: 'no-cors',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                document.getElementById('message-area').innerText = "送信完了！お疲れ様でした。";
             } catch (e) {
-                document.getElementById('message-area').innerText = "送信エラー。ネットワークを確認してください。";
+                console.error("データ送信エラー:", e);
             }
+
+            // データ送信完了後、ハブへ自動帰還し最新成績をグラフにリロード
+            setTimeout(async () => {
+                switchScreen('screen-hub');
+                await fetchScoreHistory();
+            }, 1500);
         }
+
+        // ページロード時の初期化チェック
+        window.addEventListener('DOMContentLoaded', async () => {
+            const savedHash = localStorage.getItem("saved_user_hash");
+            if (savedHash) {
+                globalUserIdHash = savedHash;
+                showAuthenticatedUI();
+                await fetchScoreHistory();
+            }
+        });
     </script>
 </body>
 </html>
