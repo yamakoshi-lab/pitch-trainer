@@ -1,0 +1,3 @@
+[build]
+  command = "sed -i \"s|GAS_URL|$GAS_URL|g\" index.html"
+  publish = "."
