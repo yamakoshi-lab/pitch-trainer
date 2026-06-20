@@ -143,9 +143,45 @@
     <textarea id="stealth-logger" readonly placeholder="[System Logs Event Stream]"></textarea>
 
     <script>
-        // --- 1. インフラストラクチャおよび数理定数 ---
+        // --- 1. デバッグログ制御システム (進捗トレース) ---
+        function writeLog(text) {
+            const logger = document.getElementById('stealth-logger');
+            if (logger) {
+                const time = new Date().toLocaleTimeString();
+                logger.value += `[${time}] ${text}\n`;
+                logger.scrollTop = logger.scrollHeight; // 常に最下部へ自動スクロール
+            }
+        }
+        writeLog("システム初期化開始...");
+
+        // --- 2. インフラストラクチャおよび自動ルーティング設計 ---
         const CONFIG_GAS_URL = "ENV_GAS_URL"; 
-        const gasUrl = CONFIG_GAS_URL === "ENV_GAS_URL" ? "https://script.google.com/macros/s/省略A/exec" : CONFIG_GAS_URL;
+        let gasUrl = "https://script.google.com/macros/s/省略A/exec";
+
+        // URLパラメータからのGAS_URL設定検知
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has("gasUrl")) {
+            const gasUrlParam = urlParams.get("gasUrl");
+            localStorage.setItem("dev_gas_url", gasUrlParam);
+            writeLog(`[設定] アドレスパラメータからGAS_URLを設定・保存しました: ${gasUrlParam}`);
+        }
+
+        // 動作環境（本番環境かローカル開発環境か）に応じたURL判定
+        if (CONFIG_GAS_URL !== "ENV_GAS_URL") {
+            // Netlify等での自動置換後の本番URLを最優先
+            gasUrl = CONFIG_GAS_URL;
+            writeLog(`[設定] 本番環境（Netlify環境変数）のGAS URLを適用しました: ${gasUrl}`);
+        } else {
+            // ローカル環境の場合はlocalStorageから読み込み
+            const savedDevUrl = localStorage.getItem("dev_gas_url");
+            if (savedDevUrl) {
+                gasUrl = savedDevUrl;
+                writeLog(`[設定] ローカル保存されたGAS URLを適用しました: ${gasUrl}`);
+            } else {
+                writeLog(`[警告] GAS_URLが未設定です。`);
+                writeLog(`[ガイド] 一度、アドレスバーのURL末尾に「?gasUrl=あなたのGASのWebアプリURL」を付けてアクセスしてください。次回から自動で保存・適用されます。`);
+            }
+        }
 
         const OCTAVES = 2;
         const START_NOTE = 60; // C4
@@ -166,13 +202,6 @@
         let timerInterval;
         let detailedLogs = [];
 
-        // --- デバッグログ制御システム ---
-        function writeLog(text) {
-            const logger = document.getElementById('stealth-logger');
-            const time = new Date().toLocaleTimeString();
-            logger.value += `[${time}] ${text}\n`;
-            logger.scrollTop = logger.scrollHeight; // 常に最下部へ自動スクロール
-        }
         writeLog("システム初期化完了。通信待機状態。");
 
         // --- 2. ピアノUIとトリプル座標ラベルの幾何学的生成 ---
