@@ -1,3 +1,11 @@
 [build]
-  command = "mkdir -p public && cp index.html public/ && sed -i \"s|ENV_GAS_URL|$GAS_URL|g\" public/index.html"
+  command = "mkdir -p public && cp index.html desktop.html public/ && sed -i \"s|ENV_GAS_URL|$GAS_URL|g\" public/index.html && sed -i \"s|ENV_GAS_URL|$GAS_URL|g\" public/desktop.html"
   publish = "public"
+
+[[edge_functions]]
+  path = "/"
+  function = "user-agent-router"
+
+[[edge_functions]]
+  path = "/index.html"
+  function = "user-agent-router"
