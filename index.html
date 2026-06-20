@@ -144,8 +144,8 @@
 
     <script>
         // --- 1. インフラストラクチャおよび数理定数 ---
-        const CONFIG_GAS_URL = "GAS_URL"; 
-        const gasUrl = CONFIG_GAS_URL === "GAS_URL" ? "https://script.google.com/macros/s/省略A/exec" : CONFIG_GAS_URL;
+        const CONFIG_GAS_URL = "ENV_GAS_URL"; 
+        const gasUrl = CONFIG_GAS_URL === "ENV_GAS_URL" ? "https://script.google.com/macros/s/省略A/exec" : CONFIG_GAS_URL;
 
         const OCTAVES = 2;
         const START_NOTE = 60; // C4
