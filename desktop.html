@@ -493,6 +493,21 @@
                         <canvas id="scoreChart"></canvas>
                     </div>
 
+                    <div id="rules-card" style="display: none; background: rgba(30, 41, 59, 0.7); border: 1px solid #334155; border-radius: 8px; padding: 15px; margin-top: 15px; text-align: left; font-size: 0.8rem; line-height: 1.5; color: #cbd5e1;">
+                        <h4 style="margin: 0 0 8px 0; color: #38bdf8; display: flex; align-items: center; gap: 5px;">📋 トレーニング内容とレベル基準</h4>
+                        <ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px;">
+                            <li><strong>前半 Q1〜5 (絶対音感)</strong>: 基準音なしで鸣ったキーを当てます。</li>
+                            <li><strong>後半 Q6〜10 (相対音感)</strong>: 基準音(C4)の後に鸣ったキーを当てます。</li>
+                            <li><strong>制限時間</strong>: 1問3秒（タイムアウト時は誤差+12のペナルティ）。</li>
+                            <li><strong>音感判定</strong>: 各5問の合計誤差（半音ズレの総和）で判定します。
+                                <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 2px;">
+                                    ・極めて正確（誤差0〜1） / ・1〜2半音の範囲（誤差2〜5）<br>
+                                    ・おおざっぱ（誤差6〜10） / ・少しだけ（誤差11〜20） / ・一般（誤差21〜）
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+
                     <button id="btn-start-game" onclick="startGame()" style="display:none; background:#22c55e; margin-top:15px; font-size:1.2rem;">テスト開始</button>
                 </div>
             </div>
@@ -524,6 +539,20 @@
 
     <script>
         // --- 1. デバッグログ制御システム (進捗トレース) ---
+        function maskUrl(url) {
+            if (!url || typeof url !== 'string') return '';
+            const match = url.match(/^(https:\/\/script\.google\.com\/macros\/s\/)([^\/]+)(\/exec.*)$/);
+            if (match) {
+                const prefix = match[1];
+                const key = match[2];
+                const suffix = match[3];
+                if (key.length > 8) {
+                    return `${prefix}${key.substring(0, 4)}...${key.substring(key.length - 4)}${suffix}`;
+                }
+            }
+            return url;
+        }
+
         function writeLog(text) {
             const logger = document.getElementById('stealth-logger');
             if (logger) {
@@ -536,6 +565,7 @@
 
         // --- 2. インフラストラクチャおよび自動ルーティング設計 ---
         const CONFIG_GAS_URL = "ENV_GAS_URL"; 
+        const CONFIG_GAS_URL_ALT = "GAS_URL";
         let gasUrl = "https://script.google.com/macros/s/省略A/exec";
 
         // URLパラメータからのGAS_URL設定検知 (URL指定も一応残します)
@@ -543,24 +573,28 @@
         if (urlParams.has("gasUrl")) {
             const gasUrlParam = urlParams.get("gasUrl");
             localStorage.setItem("dev_gas_url", gasUrlParam);
-            writeLog(`[設定] アドレスパラメータからGAS_URLを設定・保存しました: ${gasUrlParam}`);
+            writeLog(`[設定] アドレスパラメータからGAS_URLを設定・保存しました: ${maskUrl(gasUrlParam)}`);
         }
 
         // 動作環境（本番環境かローカル開発環境か）に応じたURL判定
         if (CONFIG_GAS_URL !== "ENV_GAS_URL") {
             // Netlify等での自動置換後の本番URLを最優先
             gasUrl = CONFIG_GAS_URL;
-            writeLog(`[設定] 本番環境（Netlify環境変数）のGAS URLを適用しました: ${gasUrl}`);
+            writeLog(`[設定] 本番環境（Netlify環境変数）のGAS URLを適用しました: ${maskUrl(gasUrl)}`);
+        } else if (CONFIG_GAS_URL_ALT !== "GAS_URL") {
+            // Vercel等の自動置換後の代替変数
+            gasUrl = CONFIG_GAS_URL_ALT;
+            writeLog(`[設定] 本番環境（Vercel環境変数）のGAS URLを適用しました: ${maskUrl(gasUrl)}`);
         } else if (window.LOCAL_GAS_URL) {
             // ローカルの config.js で定義されたURLを二番目に優先
             gasUrl = window.LOCAL_GAS_URL;
-            writeLog(`[設定] ローカル設定ファイル (config.js) のGAS URLを適用しました: ${gasUrl}`);
+            writeLog(`[設定] ローカル設定ファイル (config.js) のGAS URLを適用しました: ${maskUrl(gasUrl)}`);
         } else {
             // ローカル環境で config.js がない場合はlocalStorageから読み込み
             const savedDevUrl = localStorage.getItem("dev_gas_url");
             if (savedDevUrl) {
                 gasUrl = savedDevUrl;
-                writeLog(`[設定] ローカル保存されたGAS URLを適用しました: ${gasUrl}`);
+                writeLog(`[設定] ローカル保存されたGAS URLを適用しました: ${maskUrl(gasUrl)}`);
             } else {
                 writeLog(`[警告] GAS_URLが未設定です。`);
                 writeLog(`[ガイド] config.example.js をコピーして config.js を作成し、そこに本物のURLを記述してください（Gitにはコミットされません）。`);
@@ -977,6 +1011,7 @@
             document.getElementById('auth-form').style.display = 'none';
             document.getElementById('user-status').style.display = 'block';
             document.getElementById('display-user-id').innerText = `ID: ${globalUserIdHash.substring(0, 16)}...`;
+            document.getElementById('rules-card').style.display = 'block';
             document.getElementById('btn-start-game').style.display = 'block';
         }
 
@@ -986,6 +1021,7 @@
             localStorage.removeItem("saved_user_hash");
             document.getElementById('auth-form').style.display = 'block';
             document.getElementById('user-status').style.display = 'none';
+            document.getElementById('rules-card').style.display = 'none';
             document.getElementById('btn-start-game').style.display = 'none';
             if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
         }
@@ -993,7 +1029,7 @@
         // --- 4. 双方向通信システム (GET/POST) ---
         async function fetchScoreHistory() {
             if (!globalUserIdHash) return;
-            writeLog(`[GET] 履歴取得開始. 対象URL: ${gasUrl}`);
+            writeLog(`[GET] 履歴取得開始. 対象URL: ${maskUrl(gasUrl)}`);
             writeLog(`[GET] パラメータ userId: ${globalUserIdHash}`);
             
             try {
@@ -1435,7 +1471,7 @@
                 details: detailedLogs
             };
 
-            writeLog(`[POST] スコア送信開始. 対象URL: ${gasUrl}`);
+            writeLog(`[POST] スコア送信開始. 対象URL: ${maskUrl(gasUrl)}`);
             writeLog(`[POST] 送信ペイロード: ${JSON.stringify(payload)}`);
             try {
                 const response = await fetch(gasUrl, {
@@ -1461,23 +1497,44 @@
                 <div style="width: 100%; max-width: 400px; margin: 0 auto; text-align: left; background: rgba(30, 41, 59, 0.85); padding: 20px; border-radius: 12px; border: 1px solid #334155; box-shadow: 0 10px 25px rgba(0,0,0,0.5); box-sizing: border-box;">
                     <h2 style="text-align: center; margin-top: 0; color: #38bdf8; font-weight: 800; font-size: 1.3rem; margin-bottom: 15px;">🎉 テスト結果発表</h2>
                     
-                    <div style="margin-bottom: 15px; border-bottom: 1px solid #334155; padding-bottom: 10px;">
+                    <div style="margin-bottom: 12px; border-bottom: 1px solid #334155; padding-bottom: 8px;">
                         <h4 style="margin: 0 0 3px 0; color: #94a3b8; font-size: 0.8rem; text-transform: uppercase;">絶対音感（前半5問）</h4>
                         <div style="font-size: 1.05rem; font-weight: bold; color: ${absRank.color}; line-height: 1.3;">${absRank.name}</div>
                         <div style="font-size: 0.85rem; color: #cbd5e1; margin-top: 2px;">合計誤差: ${absError} 半音</div>
                         <div style="font-size: 0.75rem; color: #94a3b8; font-style: italic; margin-top: 4px; line-height: 1.3;">💡 ${absRank.advice}</div>
                     </div>
                     
-                    <div style="margin-bottom: 20px; border-bottom: 1px solid #334155; padding-bottom: 10px;">
+                    <div style="margin-bottom: 15px; border-bottom: 1px solid #334155; padding-bottom: 8px;">
                         <h4 style="margin: 0 0 3px 0; color: #94a3b8; font-size: 0.8rem; text-transform: uppercase;">相対音感（後半5問）</h4>
                         <div style="font-size: 1.05rem; font-weight: bold; color: ${relRank.color}; line-height: 1.3;">${relRank.name}</div>
                         <div style="font-size: 0.85rem; color: #cbd5e1; margin-top: 2px;">合計誤差: ${relError} 半音</div>
                         <div style="font-size: 0.75rem; color: #94a3b8; font-style: italic; margin-top: 4px; line-height: 1.3;">💡 ${relRank.advice}</div>
                     </div>
                     
-                    <button onclick="finishGameSession()" style="width: 100%; padding: 12px; font-weight: bold; background: #22c55e; border-radius: 6px; border: none; color: white; font-size: 1rem; cursor: pointer; transition: all 0.2s;">トレーニング完了</button>
+                    <div style="font-size: 0.75rem; color: #94a3b8; line-height: 1.4; margin-bottom: 15px; background: rgba(15, 23, 42, 0.4); padding: 8px; border-radius: 6px; border: 1px solid #334155;">
+                        <strong>💡 音感アップのアドバイス:</strong><br>
+                        ・白鍵・黒鍵に関係なく、半音ズレのズレ幅を小さくしていくのが鍵です。<br>
+                        ・毎回3秒の制限時間内に迷わずキーを押せるテンポ感を身につけましょう。
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; margin-top: 5px;">
+                        <button onclick="restartGameDirectly()" style="flex: 1.2; margin: 0; padding: 12px; font-weight: bold; background: #22c55e; border-radius: 6px; border: none; color: white; font-size: 0.95rem; cursor: pointer; transition: all 0.2s;">もう一度挑戦する</button>
+                        <button onclick="finishGameSession()" style="flex: 1; margin: 0; padding: 12px; font-weight: bold; background: #475569; border-radius: 6px; border: none; color: white; font-size: 0.95rem; cursor: pointer; transition: all 0.2s;">ハブ画面に戻る</button>
+                    </div>
                 </div>
             `;
+        }
+
+        function restartGameDirectly() {
+            // 表示状態を元に戻してゲーム開始
+            document.getElementById('piano-container').style.display = 'flex';
+            document.getElementById('game-header').style.display = 'flex';
+            const messageArea = document.getElementById('message-area');
+            messageArea.innerHTML = `
+                <div id="feedback-label">準備完了</div>
+                <div id="sub-feedback"></div>
+            `;
+            startGame();
         }
 
         async function finishGameSession() {
