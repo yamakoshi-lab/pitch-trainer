@@ -1014,6 +1014,42 @@
             }
         }
 
+        const customBackgroundPlugin = {
+            id: 'customBackground',
+            beforeDraw: (chart) => {
+                const { ctx, chartArea, scales } = chart;
+                const yAxis = scales.yAxisError;
+                if (!yAxis) return;
+                
+                ctx.save();
+                // 誤差 0 〜 1 (音感習得レベル) の領域を薄いグリーンで塗る
+                const top = yAxis.getPixelForValue(1);
+                const bottom = yAxis.getPixelForValue(0);
+                const left = chartArea.left;
+                const width = chartArea.right - chartArea.left;
+                const height = bottom - top;
+                
+                ctx.fillStyle = 'rgba(34, 197, 94, 0.08)'; // 薄いグリーン
+                ctx.fillRect(left, top, width, height);
+                
+                // 習得境界線 (誤差 = 1) の点線を引く
+                ctx.strokeStyle = 'rgba(34, 197, 94, 0.3)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(left, top);
+                ctx.lineTo(chartArea.right, top);
+                ctx.stroke();
+
+                // テキスト「音感習得ライン」を描画
+                ctx.fillStyle = 'rgba(34, 197, 94, 0.5)';
+                ctx.font = '8px sans-serif';
+                ctx.fillText('音感習得ライン (誤差1以下)', left + 5, top - 4);
+                
+                ctx.restore();
+            }
+        };
+
         function renderChart(data) {
             const ctx = document.getElementById('scoreChart').getContext('2d');
             if (chartInstance) { chartInstance.destroy(); }
@@ -1121,7 +1157,8 @@
                             labels: { color: '#94a3b8', font: { size: 9 } }
                         } 
                     }
-                }
+                },
+                plugins: [customBackgroundPlugin]
             });
         }
 
@@ -1348,6 +1385,42 @@
         }
 
         // --- 7. データパケット暗号化送信 (POST) ---
+        // 音感のレベル評価判定関数
+        function getRankEvaluation(error) {
+            if (error <= 1) {
+                return {
+                    name: "音感が極めて正確にわかる（音感習得レベル）",
+                    color: "var(--perfect-color)",
+                    advice: "素晴らしい精度です！この状態を維持しましょう。"
+                };
+            } else if (error <= 5) {
+                return {
+                    name: "音感が1〜2半音の範囲でわかるレベル",
+                    color: "#a3e635", // ライムグリーン
+                    advice: `音感習得レベル（誤差1以下）まで、あと「誤差 ${error - 1}」です！`
+                };
+            } else if (error <= 10) {
+                return {
+                    name: "音感がおおざっぱにわかるレベル",
+                    color: "#fde047", // イエロー
+                    advice: `次のレベル（誤差5以下）まで、あと「誤差 ${error - 5}」です！`
+                };
+            } else if (error <= 20) {
+                return {
+                    name: "音感が少しだけわかるレベル",
+                    color: "#f97316", // オレンジ
+                    advice: `次のレベル（誤差10以下）まで、あと「誤差 ${error - 10}」です！`
+                };
+            } else {
+                return {
+                    name: "音感がまだない（一般レベル）",
+                    color: "var(--high-color)", // レッド
+                    advice: `まずは次のレベル（誤差20以下）を目指して繰り返しトレーニングしましょう！`
+                };
+            }
+        }
+
+        // --- 7. データパケット暗号化送信 (POST) ---
         async function endGameAndSubmit() {
             clearInterval(timerInterval);
             document.getElementById('feedback-label').innerText = "スコア送信中...";
@@ -1376,10 +1449,50 @@
                 writeLog(`[POST] 送信処理中に例外発生: ${e.toString()}`);
             }
 
-            setTimeout(async () => {
-                switchScreen('screen-hub');
-                await fetchScoreHistory();
-            }, 1500);
+            // 結果判定画面の描画
+            const absRank = getRankEvaluation(absError);
+            const relRank = getRankEvaluation(relError);
+            
+            const messageArea = document.getElementById('message-area');
+            document.getElementById('piano-container').style.display = 'none';
+            document.getElementById('game-header').style.display = 'none';
+            
+            messageArea.innerHTML = `
+                <div style="width: 100%; max-width: 400px; margin: 0 auto; text-align: left; background: rgba(30, 41, 59, 0.85); padding: 20px; border-radius: 12px; border: 1px solid #334155; box-shadow: 0 10px 25px rgba(0,0,0,0.5); box-sizing: border-box;">
+                    <h2 style="text-align: center; margin-top: 0; color: #38bdf8; font-weight: 800; font-size: 1.3rem; margin-bottom: 15px;">🎉 テスト結果発表</h2>
+                    
+                    <div style="margin-bottom: 15px; border-bottom: 1px solid #334155; padding-bottom: 10px;">
+                        <h4 style="margin: 0 0 3px 0; color: #94a3b8; font-size: 0.8rem; text-transform: uppercase;">絶対音感（前半5問）</h4>
+                        <div style="font-size: 1.05rem; font-weight: bold; color: ${absRank.color}; line-height: 1.3;">${absRank.name}</div>
+                        <div style="font-size: 0.85rem; color: #cbd5e1; margin-top: 2px;">合計誤差: ${absError} 半音</div>
+                        <div style="font-size: 0.75rem; color: #94a3b8; font-style: italic; margin-top: 4px; line-height: 1.3;">💡 ${absRank.advice}</div>
+                    </div>
+                    
+                    <div style="margin-bottom: 20px; border-bottom: 1px solid #334155; padding-bottom: 10px;">
+                        <h4 style="margin: 0 0 3px 0; color: #94a3b8; font-size: 0.8rem; text-transform: uppercase;">相対音感（後半5問）</h4>
+                        <div style="font-size: 1.05rem; font-weight: bold; color: ${relRank.color}; line-height: 1.3;">${relRank.name}</div>
+                        <div style="font-size: 0.85rem; color: #cbd5e1; margin-top: 2px;">合計誤差: ${relError} 半音</div>
+                        <div style="font-size: 0.75rem; color: #94a3b8; font-style: italic; margin-top: 4px; line-height: 1.3;">💡 ${relRank.advice}</div>
+                    </div>
+                    
+                    <button onclick="finishGameSession()" style="width: 100%; padding: 12px; font-weight: bold; background: #22c55e; border-radius: 6px; border: none; color: white; font-size: 1rem; cursor: pointer; transition: all 0.2s;">トレーニング完了</button>
+                </div>
+            `;
+        }
+
+        async function finishGameSession() {
+            // 表示状態を元に戻す
+            document.getElementById('piano-container').style.display = 'flex';
+            document.getElementById('game-header').style.display = 'flex';
+            const messageArea = document.getElementById('message-area');
+            messageArea.innerHTML = `
+                <div id="feedback-label">準備完了</div>
+                <div id="sub-feedback"></div>
+            `;
+            
+            // ハブ画面へ遷移
+            switchScreen('screen-hub');
+            await fetchScoreHistory();
         }
 
         window.addEventListener('DOMContentLoaded', async () => {
