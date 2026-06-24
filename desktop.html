@@ -1235,7 +1235,8 @@
             
             gain.gain.setValueAtTime(0, audioCtx.currentTime);
             gain.gain.linearRampToValueAtTime(0.6, audioCtx.currentTime + 0.02);
-            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration/1000);
+            gain.gain.setValueAtTime(0.6, audioCtx.currentTime + duration/1000 - 0.05);
+            gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + duration/1000);
 
             osc.connect(gain);
             gain.connect(audioCtx.destination);
