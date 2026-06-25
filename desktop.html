@@ -1227,21 +1227,48 @@
         function playTone(midiNote, duration = 1000) {
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
+            const t = audioCtx.currentTime;
             
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-            
-            gain.gain.setValueAtTime(0, audioCtx.currentTime);
-            gain.gain.linearRampToValueAtTime(0.6, audioCtx.currentTime + 0.02);
-            gain.gain.setValueAtTime(0.6, audioCtx.currentTime + duration/1000 - 0.05);
-            gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + duration/1000);
+            // 全体の音量を制御するマスターゲイン
+            const masterGain = audioCtx.createGain();
+            masterGain.gain.setValueAtTime(0, t);
+            masterGain.gain.linearRampToValueAtTime(0.6, t + 0.02);
+            masterGain.gain.setValueAtTime(0.6, t + duration/1000 - 0.05);
+            masterGain.gain.linearRampToValueAtTime(0, t + duration/1000);
+            masterGain.connect(audioCtx.destination);
 
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start();
-            osc.stop(audioCtx.currentTime + duration/1000);
+            // 1. 基音 (Fundamental) - トライアングル波で芯と温かみを出す
+            const osc1 = audioCtx.createOscillator();
+            osc1.type = 'triangle';
+            osc1.frequency.setValueAtTime(freq, t);
+            const gain1 = audioCtx.createGain();
+            gain1.gain.value = 1.0;
+            osc1.connect(gain1);
+            gain1.connect(masterGain);
+
+            // 2. 倍音 (1オクターブ上) - サイン波で音の輪郭をはっきりさせる
+            const osc2 = audioCtx.createOscillator();
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(freq * 2, t);
+            const gain2 = audioCtx.createGain();
+            gain2.gain.value = 0.3; // 基音より控えめに
+            osc2.connect(gain2);
+            gain2.connect(masterGain);
+            
+            // 3. アタック成分 (ピアノのハンマーが弦を叩くようなコツッという音)
+            const osc3 = audioCtx.createOscillator();
+            osc3.type = 'sine';
+            osc3.frequency.setValueAtTime(freq * 3, t); // 1オクターブ+完全5度
+            const gain3 = audioCtx.createGain();
+            gain3.gain.setValueAtTime(0, t);
+            gain3.gain.linearRampToValueAtTime(0.2, t + 0.01);
+            gain3.gain.exponentialRampToValueAtTime(0.001, t + 0.1); // すぐに消える
+            osc3.connect(gain3);
+            gain3.connect(masterGain);
+
+            osc1.start(t); osc1.stop(t + duration/1000);
+            osc2.start(t); osc2.stop(t + duration/1000);
+            osc3.start(t); osc3.stop(t + duration/1000);
         }
 
         // --- 6. ゲーム状態管理シーケンス ---
